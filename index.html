@@ -26,7 +26,7 @@ button{cursor:pointer}
 .top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px;padding:24px 32px 8px}
 .eyebrow{font-size:13px;font-weight:700;color:var(--accent)}
 h1{margin:2px 0 0;font-size:30px;font-weight:800;letter-spacing:-.02em}
-.actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;flex:1 1 480px;min-width:0}
 .btn{min-height:42px;padding:0 16px;border-radius:12px;border:1px solid #DCDCE8;background:var(--surface);font-weight:700;display:inline-flex;align-items:center;gap:8px}
 .btn:hover{border-color:#B9BACB}
 .btn.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
@@ -189,6 +189,7 @@ dialog::backdrop{background:rgba(23,23,42,.4)}
 .banner.error{background:#FCE0E0;color:#8B1E1E}
 [hidden]{display:none!important}
 body.locked .stats,body.locked .toolbar,body.locked .board,body.locked .pools,body.locked .actions .btn{display:none!important}
+body.locked .drawer{display:none!important}
 .who{font-size:12px;color:var(--muted);font-weight:600}
 .login{display:flex;justify-content:center;padding:40px 16px}
 .login-card{width:min(420px,100%);background:var(--surface);border-radius:var(--radius);padding:24px;display:flex;flex-direction:column;gap:14px;box-shadow:0 12px 40px rgba(23,23,42,.08)}
@@ -196,6 +197,32 @@ body.locked .stats,body.locked .toolbar,body.locked .board,body.locked .pools,bo
 .login-msg{margin:0;font-size:13px;line-height:1.5}
 .login-msg[data-kind=ok]{color:#1C6B3C}
 .login-msg[data-kind=error]{color:#8B1E1E}
+.badge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--accent);color:#fff;font-size:11px;font-weight:800}
+.mini.has-notes{color:var(--accent);border-color:#C9C4F2;position:relative}
+.mini .n{position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--accent);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.face.noted::after{content:"";position:absolute;top:-2px;right:-2px;width:9px;height:9px;border-radius:50%;background:var(--accent);border:2px solid var(--surface)}
+.face{position:relative}
+.chip .note-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:0 0 8px}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(400px,100vw);background:var(--surface);box-shadow:-12px 0 40px rgba(23,23,42,.14);z-index:50;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.drawer-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 20px 12px;border-bottom:1px solid var(--soft-line)}
+.drawer-head h2{margin:2px 0 0;font-size:18px;font-weight:800;overflow-wrap:anywhere}
+.drawer-tabs{display:flex;gap:6px;padding:10px 20px;border-bottom:1px solid var(--soft-line);flex-wrap:wrap}
+.drawer-tabs button{min-height:34px;padding:0 12px;border-radius:999px;border:1px solid #DCDCE8;background:var(--surface);font-weight:700;font-size:13px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.drawer-tabs button[aria-selected=true]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.drawer-list{flex:1 1 auto;overflow:auto;padding:12px 20px;display:flex;flex-direction:column;gap:12px}
+.cm{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:12px;background:var(--surface-2)}
+.cm.mine{background:#EFEDFC}
+.cm-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.cm-meta b{color:var(--ink)}
+.cm-target{border:none;background:none;padding:0;font:inherit;font-size:12px;font-weight:700;color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.cm-body{margin:0;font-size:14px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.cm-del{margin-left:auto;border:none;background:none;color:var(--muted);font:inherit;font-size:12px;cursor:pointer;text-decoration:underline}
+.cm-empty{color:var(--muted);font-size:13px;padding:20px 0;text-align:center}
+.drawer-form{border-top:1px solid var(--soft-line);padding:12px 20px 16px;display:flex;flex-direction:column;gap:8px}
+.drawer-form textarea{width:100%;resize:vertical;min-height:72px;padding:10px 12px;border-radius:10px;border:1px solid #D3D3E0;font:inherit;font-size:14px;color:var(--ink);background:#fff}
+.drawer-form textarea:focus{outline:2px solid var(--accent);outline-offset:0;border-color:transparent}
+.drawer-form-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.drawer-form-row .note{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:12px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .2s}
 .toast.show{opacity:1}
 
@@ -222,6 +249,7 @@ body.locked .stats,body.locked .toolbar,body.locked .board,body.locked .pools,bo
   <div class="actions">
     <span id="syncStatus" class="sync" role="status" data-kind="busy">Conectando…</span>
     <span id="who" class="who" hidden></span>
+    <button class="btn" id="notesBtn" hidden aria-controls="drawer">Comentarios <span class="badge" id="notesCount">0</span></button>
     <button class="btn" id="passBtn" hidden>Contraseña</button>
     <button class="btn" id="logoutBtn" hidden>Salir</button>
     <button class="btn icon" data-act="undo" id="undoBtn" aria-label="Deshacer" title="Deshacer (Ctrl+Z)">
@@ -282,6 +310,26 @@ body.locked .stats,body.locked .toolbar,body.locked .board,body.locked .pools,bo
 
 <dialog id="dlg"></dialog>
 <input type="file" id="fileIn" accept=".json,application/json" hidden>
+<aside class="drawer" id="drawer" aria-label="Comentarios" hidden>
+  <div class="drawer-head">
+    <div>
+      <div class="eyebrow">Comentarios</div>
+      <h2 id="drawerTitle">Todos</h2>
+    </div>
+    <button type="button" class="mini" id="drawerClose" aria-label="Cerrar comentarios"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 2l10 10M12 2L2 12"/></svg></button>
+  </div>
+  <div class="drawer-tabs" role="tablist">
+    <button type="button" role="tab" data-filter="all">Todos</button>
+    <button type="button" role="tab" data-filter="general">Generales</button>
+    <button type="button" role="tab" data-filter="target" id="tabTarget" hidden></button>
+  </div>
+  <div class="drawer-list" id="drawerList" aria-live="polite"></div>
+  <form class="drawer-form" id="noteForm">
+    <label class="sr" for="noteText">Escribí un comentario</label>
+    <textarea id="noteText" rows="3" maxlength="4000" placeholder="Escribí un comentario…"></textarea>
+    <div class="drawer-form-row"><span class="note" id="noteTarget">General</span><button class="btn primary" id="noteSend">Enviar</button></div>
+  </form>
+</aside>
 <div class="toast" id="toast" role="status"></div>
 
 <script>
@@ -476,6 +524,7 @@ function listenRealtime(){
     if(p.eventType === 'DELETE') cache[t].delete(p.old.id); else cache[t].set(p.new.id, p.new.data);
     emit(t);
   }));
+  ch.on('postgres_changes', {event:'*', schema:'public', table:'comments'}, onNoteChange);
   ch.subscribe(st => { if(st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') setStatus('Tiempo real cortado · recargá la página', 'error'); });
   // al volver a la pestaña, traer lo último por si se perdió algún aviso
   document.addEventListener('visibilitychange', () => { if(!document.hidden && DB) ['config','teams','people'].forEach(t => loadTable(t).catch(() => {})); });
@@ -512,7 +561,9 @@ async function startSupabase(){
   document.getElementById('who').hidden = false;
   document.getElementById('logoutBtn').hidden = false;
   document.getElementById('passBtn').hidden = false;
+  document.getElementById('notesBtn').hidden = false;
   listenRealtime();
+  loadNotes();
   return SBDB;
 }
 document.getElementById('loginForm').addEventListener('submit', async e => {
@@ -628,7 +679,110 @@ function render(){
   document.title = 'Organigrama · ' + (S.tribe.name || '');
   $('#undoBtn').disabled = !hist.length;
   renderStats(); renderLegend(); renderTree(); renderPool();
+  renderNotes();
 }
+
+/* ---------- comentarios ---------- */
+let notes = [];               // {id, target_type, target_id, body, author, created_at}
+let notesReady = false;
+let notesFilter = {type:'all', id:null};
+function noteCount(type, id){ let n = 0; for(const c of notes) if(c.target_type === type && c.target_id === id) n++; return n; }
+function noteBtn(type, id, name){
+  const n = noteCount(type, id);
+  return '<button class="mini' + (n ? ' has-notes' : '') + '" data-act="notes" data-ntype="' + type + '" data-nid="' + id + '" aria-label="Comentarios de ' + esc(name) + (n ? ' (' + n + ')' : '') + '" title="Comentarios">' + ICON_COMMENT + (n ? '<span class="n">' + n + '</span>' : '') + '</button>';
+}
+function targetName(type, id){
+  if(type === 'team'){ const t = S.teams.find(x => x.id === id); return t ? 'Equipo ' + t.name : 'Equipo eliminado'; }
+  if(type === 'person'){ const p = S.people.find(x => x.id === id); return p ? p.name : 'Persona eliminada'; }
+  return 'General';
+}
+function shortName(email){ const m = (email || '').split('@')[0]; return m.replace(/[._-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'Alguien'; }
+function when(iso){
+  const d = new Date(iso), diff = (Date.now() - d) / 1000;
+  if(diff < 60) return 'recién';
+  if(diff < 3600) return 'hace ' + Math.floor(diff / 60) + ' min';
+  if(diff < 86400 && d.getDate() === new Date().getDate()) return 'hoy ' + d.toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'});
+  return d.toLocaleDateString('es-AR', {day:'2-digit', month:'2-digit'}) + ' ' + d.toLocaleTimeString('es-AR', {hour:'2-digit', minute:'2-digit'});
+}
+function openNotes(type, id){
+  notesFilter = type === 'all' || type === 'general' ? {type, id:null} : {type, id};
+  $('#drawer').hidden = false;
+  renderNotes();
+  setTimeout(() => $('#noteText').focus(), 30);
+}
+function renderNotes(){
+  const btn = document.getElementById('notesBtn'); if(!btn) return;
+  $('#notesCount').textContent = notes.length;
+  if($('#drawer').hidden) return;
+  const f = notesFilter;
+  const isTarget = f.type === 'team' || f.type === 'person';
+  const tTab = $('#tabTarget');
+  tTab.hidden = !isTarget;
+  if(isTarget) tTab.textContent = targetName(f.type, f.id);
+  document.querySelectorAll('.drawer-tabs [role=tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.filter === (isTarget ? 'target' : f.type))));
+  $('#drawerTitle').textContent = isTarget ? targetName(f.type, f.id) : (f.type === 'general' ? 'Notas generales' : 'Todos los comentarios');
+  $('#noteTarget').textContent = 'Se publica en: ' + (isTarget ? targetName(f.type, f.id) : 'General');
+  const list = notes.filter(c => f.type === 'all' ? true : f.type === 'general' ? c.target_type === 'general' : (c.target_type === f.type && c.target_id === f.id));
+  const box = $('#drawerList');
+  const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+  box.innerHTML = !notesReady ? '<div class="cm-empty">Cargando comentarios…</div>'
+    : !list.length ? '<div class="cm-empty">' + (isTarget ? 'Todavía no hay comentarios sobre ' + esc(targetName(f.type, f.id)) + '.' : 'Todavía no hay comentarios. Escribí el primero.') + '</div>'
+    : list.map(c => {
+        const mine = (c.author || '').toLowerCase() === myEmail.toLowerCase();
+        const showTarget = f.type === 'all' && c.target_type !== 'general';
+        return '<article class="cm' + (mine ? ' mine' : '') + '">' +
+          '<div class="cm-meta"><b>' + esc(shortName(c.author)) + '</b><span>' + esc(when(c.created_at)) + '</span>' +
+          (showTarget ? '<span>·</span><button type="button" class="cm-target" data-ntype="' + c.target_type + '" data-nid="' + esc(c.target_id) + '">' + esc(targetName(c.target_type, c.target_id)) + '</button>' : '') +
+          (mine ? '<button type="button" class="cm-del" data-del="' + c.id + '">Borrar</button>' : '') + '</div>' +
+          '<p class="cm-body">' + esc(c.body) + '</p></article>';
+      }).join('');
+  if(atBottom) box.scrollTop = box.scrollHeight;
+}
+async function loadNotes(){
+  const {data, error} = await sb.from('comments').select('*').order('created_at', {ascending:true}).limit(2000);
+  if(error){ notesReady = true; $('#drawerList').innerHTML = '<div class="cm-empty">Los comentarios no están activados todavía. Hay que correr supabase-comentarios.sql en Supabase.</div>'; return; }
+  notes = data; notesReady = true; onRemote(); renderNotes();
+}
+function onNoteChange(p){
+  if(p.eventType === 'INSERT'){ if(!notes.some(c => c.id === p.new.id)) notes.push(p.new); }
+  else if(p.eventType === 'DELETE'){ notes = notes.filter(c => c.id !== p.old.id); }
+  else if(p.eventType === 'UPDATE'){ notes = notes.map(c => c.id === p.new.id ? p.new : c); }
+  notes.sort((a, b) => a.created_at < b.created_at ? -1 : 1);
+  onRemote();
+}
+document.getElementById('notesBtn').addEventListener('click', () => { if($('#drawer').hidden) openNotes(notesFilter.type === 'all' || notesFilter.type === 'general' ? notesFilter.type : 'all'); else $('#drawer').hidden = true; });
+document.getElementById('drawerClose').addEventListener('click', () => { $('#drawer').hidden = true; });
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && !$('#drawer').hidden && !dlg.open) $('#drawer').hidden = true; });
+document.querySelector('.drawer-tabs').addEventListener('click', e => {
+  const b = e.target.closest('[data-filter]'); if(!b) return;
+  if(b.dataset.filter !== 'target') notesFilter = {type:b.dataset.filter, id:null};
+  renderNotes();
+});
+$('#drawerList').addEventListener('click', async e => {
+  const t = e.target.closest('.cm-target');
+  if(t){ notesFilter = {type:t.dataset.ntype, id:t.dataset.nid}; renderNotes(); return; }
+  const d = e.target.closest('[data-del]');
+  if(d){
+    if(d.dataset.confirm !== '1'){ d.dataset.confirm = '1'; d.textContent = '¿Borrar? Tocá de nuevo'; setTimeout(() => { if(d.isConnected){ d.dataset.confirm = ''; d.textContent = 'Borrar'; } }, 3000); return; }
+    const {error} = await sb.from('comments').delete().eq('id', d.dataset.del);
+    if(error) toast('No se pudo borrar el comentario'); else { notes = notes.filter(c => c.id !== d.dataset.del); render(); }
+  }
+});
+$('#noteText').addEventListener('keydown', e => { if(e.key === 'Enter' && (e.metaKey || e.ctrlKey)){ e.preventDefault(); $('#noteForm').requestSubmit(); } });
+$('#noteForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const body = $('#noteText').value.trim(); if(!body || !sb) return;
+  const f = notesFilter, isTarget = f.type === 'team' || f.type === 'person';
+  const row = {target_type: isTarget ? f.type : 'general', target_id: isTarget ? f.id : null, body, author: myEmail};
+  $('#noteSend').disabled = true;
+  const {data, error} = await sb.from('comments').insert(row).select().single();
+  $('#noteSend').disabled = false;
+  if(error){ toast(/does not exist|relation/i.test(error.message) ? 'Falta activar los comentarios en Supabase (supabase-comentarios.sql).' : 'No se pudo enviar el comentario'); return; }
+  $('#noteText').value = '';
+  if(!notes.some(c => c.id === data.id)) notes.push(data);
+  render();
+  const box = $('#drawerList'); box.scrollTop = box.scrollHeight;
+});
 
 function renderStats(){
   const teams = S.teams.map(t => analyze(t.id));
@@ -670,18 +824,20 @@ function ringSvg(n, max, over){
 
 function tip(p){
   const r = role(p.role);
-  return p.name + '\n' + (p.title || r.label) + (p.company === EXT ? ' · TMA' : '') + (p.spec ? '\nEspecialidad: ' + p.spec : '') + (p.manager ? '\nJefe: ' + p.manager : '');
+  const nc = noteCount('person', p.id);
+  return p.name + (nc ? '  (' + nc + (nc === 1 ? ' comentario)' : ' comentarios)') : '') + '\n' + (p.title || r.label) + (p.company === EXT ? ' · TMA' : '') + (p.spec ? '\nEspecialidad: ' + p.spec : '') + (p.manager ? '\nJefe: ' + p.manager : '');
 }
 function face(p){
   const r = role(p.role);
   const ext = p.company === EXT;
-  return '<button class="face' + (ext ? ' ext' : '') + personClass(p) + '" draggable="true" data-pid="' + p.id + '" data-act="edit-person" title="' + esc(tip(p)) + '" aria-label="' + esc(p.name + ', ' + r.label + (ext ? ', de TMA' : '')) + '" style="background:' + soft(r.color) + ';color:' + esc(r.color) + '">' + esc(initials(p.name)) + '</button>';
+  return '<button class="face' + (ext ? ' ext' : '') + (noteCount('person', p.id) ? ' noted' : '') + personClass(p) + '" draggable="true" data-pid="' + p.id + '" data-act="edit-person" title="' + esc(tip(p)) + '" aria-label="' + esc(p.name + ', ' + r.label + (ext ? ', de TMA' : '')) + '" style="background:' + soft(r.color) + ';color:' + esc(r.color) + '">' + esc(initials(p.name)) + '</button>';
 }
 function chip(p, showRole){
   const r = role(p.role);
   return '<button class="chip' + (p.company === EXT ? ' ext' : '') + personClass(p) + '" draggable="true" data-pid="' + p.id + '" data-act="edit-person" title="' + esc(tip(p)) + '">' +
     '<span class="dot" style="background:' + soft(r.color) + ';color:' + esc(r.color) + '">' + esc(initials(p.name)) + '</span>' +
     '<span>' + esc(p.name) + (showRole ? ' · ' + esc(r.short) : '') + '</span>' +
+    (noteCount('person', p.id) ? '<span class="note-dot" title="Tiene comentarios"></span>' : '') +
     (p.spec ? '<span class="spec-tag">' + esc(p.spec) + '</span>' : '') +
     (p.company === EXT && !showRole ? '<span class="co-tag">TMA</span>' : '') + '</button>';
 }
@@ -690,6 +846,7 @@ const ICON_EXPAND = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"
 const ICON_SHRINK = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 2v4H2M10 2v4h4M6 14v-4H2M10 14v-4h4"/></svg>';
 const ICON_UP = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 10l4-4 4 4"/></svg>';
 const ICON_DOWN = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>';
+const ICON_COMMENT = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>';
 const ICON_EDIT = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M10.5 2.5l3 3L6 13H3v-3z"/></svg>';
 
 function renderTree(){
@@ -745,6 +902,7 @@ function teamCard(t){
             '</div>' +
             '<div class="team-tools">' +
               '<button class="mini" data-act="collapse" data-tid="' + t.id + '" aria-expanded="' + !col + '" aria-label="' + (col ? 'Desplegar' : 'Colapsar') + ' equipo ' + esc(t.name) + '" title="' + (col ? 'Desplegar' : 'Colapsar') + '">' + (col ? ICON_DOWN : ICON_UP) + '</button>' +
+              noteBtn('team', t.id, t.name) +
               '<button class="mini" data-act="edit-team" data-tid="' + t.id + '" aria-label="Editar equipo ' + esc(t.name) + '">' + ICON_EDIT + '</button>' +
               '<button class="mini" data-act="toggle" data-tid="' + t.id + '" aria-label="' + (exp ? 'Achicar' : 'Ampliar') + ' equipo">' + (exp ? ICON_SHRINK : ICON_EXPAND) + '</button>' +
             '</div></div>';
@@ -865,8 +1023,10 @@ function personDialog(p, co){
     '<div class="grid2"><label class="field">Puesto<input name="title" value="' + esc(p.title || '') + '"></label>' +
     '<label class="field">Jefe directo<input name="manager" value="' + esc(p.manager || '') + '"></label></div>',
     (isNew ? '' : '<button class="btn danger left" value="delete">Eliminar</button>') +
+    (isNew ? '' : '<button class="btn" value="notes" formnovalidate>Comentarios (' + noteCount('person', p.id) + ')</button>') +
     '<button class="btn" value="cancel" formnovalidate>Cancelar</button><button class="btn primary" value="ok">' + (isNew ? 'Agregar' : 'Guardar') + '</button>',
     (f, v) => {
+      if(v === 'notes'){ dlg.close(); openNotes('person', p.id); return; }
       if(v === 'delete'){ commit(() => { S.people = S.people.filter(x => x.id !== p.id); }); toast('Persona eliminada'); return; }
       const name = f.elements.name.value.trim(); if(!name) return false;
       commit(() => {
@@ -1041,6 +1201,7 @@ document.addEventListener('click', e => {
   else if(act === 'export') exportJson();
   else if(act === 'import-menu') importDialog();
   else if(act === 'undo') undo();
+  else if(act === 'notes') openNotes(el.dataset.ntype, el.dataset.nid);
   else if(act === 'move-left') moveTeam(tid, -1);
   else if(act === 'move-right') moveTeam(tid, 1);
   else if(act === 'zoom-in') setZoom(zoom + 0.1);
