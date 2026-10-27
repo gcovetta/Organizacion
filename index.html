@@ -275,6 +275,9 @@ body.locked .drawer{display:none!important}
 .role-stat{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:var(--surface);color:var(--ink);font-weight:600}
 .role-stat i{width:10px;height:10px;border-radius:3px}
 .role-stat b{font-weight:800}
+
+.pool.park{flex-basis:100%;border-color:#8A8AA0;background:#F1F1F6}
+.pool.park .count{color:#3F4152}
 </style>
 </head>
 <body>
@@ -346,6 +349,7 @@ body.locked .drawer{display:none!important}
 <div class="pools">
   <section class="pool" id="poolHome" data-drop="u" data-co="Personal" aria-label="Sin asignar de Personal"></section>
   <section class="pool ext" id="poolExt" data-drop="u" data-co="TMA" aria-label="Sin asignar de TMA"></section>
+  <section class="pool park" id="poolPark" data-drop="park" aria-label="Parking lot"></section>
 </div>
 
 <dialog id="dlg"></dialog>
@@ -377,6 +381,7 @@ body.locked .drawer{display:none!important}
 'use strict';
 const KEY = 'organigrama-equipos-v1';
 const UN = 'u';
+const PARK = 'park'; // parking lot: gente apartada, no cuenta en la estructura
 const HOME = 'Personal', EXT = 'TMA';
 const COMPANIES = [HOME, EXT];
 const FLOAT = '~';
@@ -446,7 +451,7 @@ function normalize(d){
   b.migrations = d.migrations || [];
   b.collapsed = d.collapsed || {};
   const teamIds = new Set(b.teams.map(t => t.id));
-  b.people.forEach(p => { if(!teamIds.has(p.team)) p.team = UN; if(!p.id) p.id = uid('p'); if(!COMPANIES.includes(p.company)) p.company = HOME; });
+  b.people.forEach(p => { if(!teamIds.has(p.team) && p.team !== PARK) p.team = UN; if(!p.id) p.id = uid('p'); if(!COMPANIES.includes(p.company)) p.company = HOME; });
   b.teams.forEach(t => { if(t.lead){ t.parent = null; return; } if(t.parent === FLOAT) return; if(!t.parent || !teamIds.has(t.parent) || t.parent === t.id) t.parent = null; });
   // corta ciclos si el archivo viene roto
   b.teams.forEach(t => { const seen = new Set([t.id]); let p = t.parent;
@@ -683,7 +688,7 @@ function otherRoots(){ return S.teams.filter(t => t.lead); }
 // equipo que no cuenta en nuestra estructura: cuelga (directa o indirectamente) de otro líder
 function isOutside(teamId){ let t = S.teams.find(x => x.id === teamId), n = 0; while(t && n++ < 200){ if(t.lead) return true; t = S.teams.find(x => x.id === t.parent); } return false; }
 function ourTeams(){ return S.teams.filter(t => !isOutside(t.id)); }
-function ourPeople(){ return S.people.filter(p => !isOutside(p.team)); }
+function ourPeople(){ return S.people.filter(p => p.team !== PARK && !isOutside(p.team)); }
 function descendants(id){ const out = []; childrenOf(id).forEach(c => { out.push(c.id); out.push(...descendants(c.id)); }); return out; }
 function isStack(id){ return false; } // sub-equipos siempre uno al lado del otro
 function leaves(id){ const ch = childrenOf(id); return (!ch.length || isStack(id) || (S.collapsed || {})[id]) ? 1 : ch.reduce((a, c) => a + leaves(c.id), 0); }
@@ -885,6 +890,7 @@ function renderStats(){
     stat('Alertas', alerts, alerts > 0) +
     stat('De TMA', ourPeople().filter(p => p.company === EXT).length) +
     stat('Sin asignar', un, un > 0) +
+    stat('Parking lot · no cuenta', membersOf(PARK).length) +
     roleStats();
 }
 function roleStats(){
@@ -1098,6 +1104,10 @@ function renderPool(){
       '<button class="btn pool-add" data-act="add-person" data-co="' + co + '">+ Persona' + (co === EXT ? ' de TMA' : '') + '</button></div>' +
       '<div class="pool-list">' + (m.length ? m.map(p => chip(p, true)).join('') : '<span class="hint">Vacío</span>') + '</div>';
   });
+  const pk = membersOf(PARK);
+  $('#poolPark').innerHTML = '<div class="pool-head"><h2>Parking lot</h2><span class="count">' + pk.length + '</span>' +
+    '<span class="hint">no cuenta en la estructura · arrastrá gente acá para apartarla</span></div>' +
+    '<div class="pool-list">' + (pk.length ? pk.map(p => chip(p, true)).join('') : '<span class="hint">Vacío</span>') + '</div>';
 }
 
 /* ---------- dialogs ---------- */
@@ -1125,7 +1135,8 @@ function openDialog(title, body, foot, onSubmit, onOpen){
 function roleOptions(sel){ return S.roles.map(r => '<option value="' + esc(r.id) + '"' + (r.id === sel ? ' selected' : '') + '>' + esc(r.label) + '</option>').join(''); }
 function teamOptions(sel){
   return S.teams.map(t => '<option value="' + t.id + '"' + (t.id === sel ? ' selected' : '') + '>' + esc(t.name) + '</option>').join('') +
-    '<option value="' + UN + '"' + (sel === UN ? ' selected' : '') + '>Sin asignar</option>';
+    '<option value="' + UN + '"' + (sel === UN ? ' selected' : '') + '>Sin asignar</option>' +
+    '<option value="' + PARK + '"' + (sel === PARK ? ' selected' : '') + '>Parking lot (no cuenta)</option>';
 }
 
 function personDialog(p, co){
@@ -1360,7 +1371,7 @@ document.addEventListener('drop', e => {
   zone.classList.remove('drop');
   const co = zone.dataset.co;
   if(!p || (p.team === team && (!co || p.company === co))) return;
-  const dest = team === UN ? 'Sin asignar · ' + co : (S.teams.find(t => t.id === team) || {}).name;
+  const dest = team === PARK ? 'Parking lot' : team === UN ? 'Sin asignar · ' + co : (S.teams.find(t => t.id === team) || {}).name;
   commit(() => { p.team = team; if(co) p.company = co; });
   toast(p.name + ' → ' + dest);
 });
