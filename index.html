@@ -339,6 +339,12 @@ body.locked .drawer{display:none!important}
 .lv-chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:4px 6px 4px 10px;border-radius:999px;background:#ECEBFA;color:var(--accent)}
 .lv-chip button{all:unset;cursor:pointer;padding:0 4px;font-weight:800}
 @media (max-width:640px){.db-body{padding:12px 16px}.db-row{grid-template-columns:1fr;gap:4px}}
+
+.db-roles{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.db-roles label{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;background:var(--surface-2);cursor:pointer;font-weight:700;color:var(--ink)}
+.db-roles label span{width:8px;height:8px;border-radius:2px}
+.db-roles input{margin:0}
+.db-roles label:has(input:not(:checked)){color:var(--muted);text-decoration:line-through}
 </style>
 </head>
 <body>
@@ -1304,17 +1310,24 @@ const DB_V = {open:false};
 function dbData(){
   // solo nuestra estructura: equipos propios con gente; fuera B2B, parking lot y sin asignar
   const teams = ourTeams().map(t => ({t, m: membersOf(t.id)})).filter(x => x.m.length);
+  const hidden = dbHidden();
+  teams.forEach(x => { x.m = x.m.filter(p => !hidden.includes(p.role)); });
   const used = new Set(); teams.forEach(x => x.m.forEach(p => used.add(p.role)));
   const roles = S.roles.filter(r => used.has(r.id)).concat([...used].filter(id => !S.roles.some(r => r.id === id)).map(id => role(id)));
   const tot = roles.map(r => teams.reduce((a, x) => a + x.m.filter(p => p.role === r.id).length, 0));
   const N = tot.reduce((a, b) => a + b, 0);
   const share = tot.map(v => N ? v / N : 0);
   const rows = teams.map(x => {
-    const n = x.m.length; let dev = 0;
+    const n = x.m.length; if(!n) return {t: x.t, n: 0, cells: [], idx: 100}; let dev = 0;
     const cells = roles.map((r, i) => { const v = x.m.filter(p => p.role === r.id).length, e = n * share[i]; dev += Math.abs(v - e); return {v, e, d: v - e}; });
     return {t: x.t, n, cells, idx: Math.round((1 - dev / (2 * n)) * 100)};
   });
-  return {roles, tot, N, rows};
+  return {roles, tot, N, rows: rows.filter(r => r.n)};
+}
+// roles que no se muestran ni se cuentan en el tablero (por defecto, Gerente)
+function dbHidden(){
+  if(Array.isArray(S.settings.dashHide)) return S.settings.dashHide;
+  return S.roles.filter(r => /^ger/i.test(r.short || '') || /^gerent/i.test(r.label || '')).map(r => r.id);
 }
 function renderDash(){
   const v = $('#dashView');
@@ -1323,7 +1336,10 @@ function renderDash(){
   const {roles, tot, N, rows} = dbData();
   const leadIds = S.roles.filter(r => r.lead).map(r => r.id);
   const leadName = leadIds.length ? leadIds.map(id => role(id).label).join(' / ') : 'líder';
-  $('#dbBar').innerHTML = '<h2>Tablero · equilibrio de roles</h2><span class="count">' + rows.length + ' equipos · ' + N + ' personas (sin B2B, parking lot ni sin asignar)</span><button class="btn lv-close" data-act="dash-close">Cerrar</button>';
+  const hid = dbHidden();
+  $('#dbBar').innerHTML = '<h2>Tablero · equilibrio de roles</h2><span class="count">' + rows.length + ' equipos · ' + N + ' personas (sin B2B, parking lot ni sin asignar)</span>' +
+    '<span class="db-roles">Roles:' + S.roles.map(r => '<label title="' + (hid.includes(r.id) ? 'Oculto: no se cuenta en el tablero' : 'Se cuenta en el tablero') + '"><input type="checkbox" data-dbrole="' + esc(r.id) + '"' + (hid.includes(r.id) ? '' : ' checked') + '><span style="background:' + esc(r.color) + '"></span>' + esc(r.short) + '</label>').join('') + '</span>' +
+    '<button class="btn lv-close" data-act="dash-close">Cerrar</button>';
   if(!rows.length){ $('#dbBody').innerHTML = '<div class="lv-empty">Todavía no hay equipos con gente para analizar.</div>'; return; }
   // A · indicadores
   const bal = Math.round(rows.reduce((a, r) => a + r.idx, 0) / rows.length);
@@ -1358,6 +1374,11 @@ function renderDash(){
     bar('Tribu (referencia)', tot, N, false, true) + rows.map(r => bar(r.t.name, r.cells.map(c => c.v), r.n, r.idx < 70)).join('') + '</section>';
   $('#dbBody').innerHTML = h;
 }
+$('#dashView').addEventListener('change', e => {
+  const id = e.target.dataset && e.target.dataset.dbrole; if(id == null) return;
+  const cur = dbHidden().slice();
+  commit(() => { S.settings.dashHide = e.target.checked ? cur.filter(x => x !== id) : cur.concat(id); });
+});
 $('#dashView').addEventListener('keydown', e => { if(e.key === 'Escape' && !dlg.open){ DB_V.open = false; renderDash(); } });
 
 /* ---------- dialogs ---------- */
