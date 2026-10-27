@@ -1210,7 +1210,8 @@ let compactUI = {};
 try { compactUI = JSON.parse(localStorage.getItem(KEY + '-compact') || '{}'); } catch(e){}
 function isCompact(t){
   if(typeof compactUI[t.id] === 'boolean') return compactUI[t.id];
-  return /dise[ñn]o.*ingenier/i.test(t.name) || /soporte.*operaci/i.test(t.name);
+  return /dise[ñn]o.*ingenier/i.test(t.name) || /soporte.*operaci/i.test(t.name) ||
+    /cloud\s*advisor/i.test(t.name) || /p[uú]blica/i.test(t.name) || /operaci[oó]n(es)?\s*(de\s*)?data\s*center/i.test(t.name);
 }
 function borderFor(n){ return n <= 2 ? 1 : n <= 5 ? 2 : n <= 8 ? 3 : n <= 12 ? 5 : n <= 18 ? 7 : 9; }
 function teamCard(t){
