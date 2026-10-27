@@ -156,6 +156,13 @@ h1{margin:2px 0 0;font-size:30px;font-weight:800;letter-spacing:-.02em}
 .pool .chip{border-radius:999px}
 .spec-tag{font-size:10px;font-weight:800;padding:2px 6px;border-radius:6px;background:#EEF0F5;color:#3F4152;margin-left:auto}
 .chip .spec-tag + .co-tag{margin-left:2px}
+.about{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+.about-desc{margin:0;line-height:1.4;white-space:pre-line}
+.about-desc.clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.about-h{font-weight:700;color:var(--ink);margin-top:2px}
+.about-resp{margin:0;padding-left:18px;line-height:1.45}
+.about-more{font:inherit;font-size:12px;font-weight:700;color:var(--muted);background:var(--surface-2);border:none;border-radius:999px;padding:3px 10px;cursor:pointer}
+.about-more:hover{color:var(--ink)}
 .spec-line{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px;color:var(--muted)}
 .spec-line .spec-tag{margin-left:0}
 .co-tag{font-size:10px;font-weight:800;padding:2px 6px;border-radius:6px;background:var(--co-ext-bg);color:var(--co-ext-ink);margin-left:2px}
@@ -761,7 +768,7 @@ function pump(){
   }
 }
 function cfgOf(x){ return {tribe:x.tribe, settings:x.settings, roles:x.roles}; }
-function teamDoc(t, i){ const d = {name:t.name, parent:t.parent == null ? null : t.parent, order:i}; if(t.lead) d.lead = true; if(typeof t.multi === 'boolean') d.multi = t.multi; if(t.desc) d.desc = t.desc; return d; }
+function teamDoc(t, i){ const d = {name:t.name, parent:t.parent == null ? null : t.parent, order:i}; if(t.lead) d.lead = true; if(typeof t.multi === 'boolean') d.multi = t.multi; if(t.desc) d.desc = t.desc; if(t.resp && t.resp.length) d.resp = t.resp.slice(); return d; }
 function personDoc(p){ const o = Object.assign({}, p); delete o.id; return o; }
 function sync(prev, next){
   if(JSON.stringify(cfgOf(prev)) !== JSON.stringify(cfgOf(next))){ const c = cfgOf(next); enqueue(() => DB.doc('meta/config').set(JSON.parse(JSON.stringify(c)))); }
@@ -1317,6 +1324,17 @@ function isCompact(t){
     /cloud\s*advisor/i.test(t.name) || /p[uú]blica/i.test(t.name) || /operaci[oó]n(es)?\s*(de\s*)?data\s*center/i.test(t.name);
 }
 function borderFor(n){ return n <= 2 ? 1 : n <= 5 ? 2 : n <= 8 ? 3 : n <= 12 ? 5 : n <= 18 ? 7 : 9; }
+function aboutBlock(t, exp){
+  const resp = t.resp || [];
+  if(!t.desc && !resp.length) return '';
+  let h = '<div class="about">';
+  if(t.desc) h += '<p class="about-desc' + (exp ? '' : ' clamp') + '">' + esc(t.desc) + '</p>';
+  if(resp.length){
+    if(exp) h += '<div class="about-h">Responsabilidades</div><ul class="about-resp">' + resp.map(r => '<li>' + esc(r) + '</li>').join('') + '</ul>';
+    else h += '<button class="about-more" data-act="toggle" data-tid="' + t.id + '" title="Ampliar el equipo para ver la lista">' + resp.length + (resp.length === 1 ? ' responsabilidad' : ' responsabilidades') + ' ›</button>';
+  }
+  return h + '</div>';
+}
 function teamCard(t){
   const a = analyze(t.id);
   const exp = !!S.expanded[t.id];
@@ -1365,6 +1383,7 @@ function teamCard(t){
           h += '<div class="empty">Arrastrá personas acá</div>';
         }
       }
+      h += aboutBlock(t, exp);
       const sp = Object.keys(a.specs).sort();
       if(sp.length) h += '<div class="spec-line">Especialidad:' + sp.map(k => '<span class="spec-tag">' + esc(k) + ' · ' + a.specs[k] + '</span>').join('') + '</div>';
       h += skillLine(t, a, kids);
@@ -1734,7 +1753,7 @@ function prefLeaders(){
 }
 function prefTeams(){
   const off = S.settings.prefTeamsOff || [];
-  return ourTeams().filter(t => !off.includes(t.id)).map(t => ({id:t.id, name:t.name, desc:t.desc || ''}));
+  return ourTeams().filter(t => !off.includes(t.id)).map(t => ({id:t.id, name:t.name, desc:t.desc || '', resp:(t.resp || []).slice()}));
 }
 function prefUrl(token){ return location.origin + location.pathname.replace(/[^/]*$/, '') + 'preferencias.html?t=' + token; }
 // la lista de equipos que ven los líderes se mantiene igual a la del organigrama
@@ -1938,7 +1957,8 @@ function teamDialog(t, asLead){
     '<label class="field">' + (lead ? 'Nombre (ej: B2B)' : 'Nombre del equipo') + '<input name="name" required value="' + esc(t.name) + '"></label>' +
     (lead ? '<p class="note">Queda al mismo nivel que ' + esc(S.tribe.lead || 'el líder de tribu') + ', sin líder. Las personas y equipos que pongas ahí no cuentan en los totales, promedios ni alertas de esta estructura. Para sumarle equipos, elegila en "Reporta a" de cada equipo.</p>'
       : '<label class="field">Reporta a<select name="parent">' + parentOpts + '</select></label>' +
-        '<label class="field">Descripción <span style="font-weight:400;color:var(--muted)">(la ven los líderes en la consulta de preferencias)</span><textarea name="desc" rows="2" maxlength="300" placeholder="Qué hace el equipo, en una o dos líneas">' + esc(t.desc || '') + '</textarea></label>' +
+        '<label class="field">Descripción <span style="font-weight:400;color:var(--muted)">(la ven los líderes en la consulta de preferencias)</span><textarea name="desc" rows="3" maxlength="600" placeholder="Qué hace el equipo y para qué existe, en pocas líneas">' + esc(t.desc || '') + '</textarea></label>' +
+        '<label class="field">Responsabilidades <span style="font-weight:400;color:var(--muted)">(una por renglón)</span><textarea name="resp" rows="5" maxlength="3000" placeholder="Operar y mantener la plataforma de virtualización&#10;Gestionar capacidad y parches&#10;Guardia 24x7 de nivel 2">' + esc((t.resp || []).join('\n')) + '</textarea></label>' +
         '<label class="field" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="multi"' + (t.name && isMulti(t) ? ' checked' : '') + ' style="width:auto;height:auto"> Equipo multi-rol (se espera una mezcla de roles; si no, es específico)</label>') +
     (isNew ? '' : lead ? '<p class="note">Si la eliminás, su gente pasa a "Sin asignar" y sus equipos quedan sin ubicar.</p>' : '<p class="note">Si eliminás el equipo, sus integrantes pasan a "Sin asignar" y los equipos que le reportan pasan a reportar a su superior.</p>') +
     (isNew ? '' : '<label class="field">Posición<select name="pos">' + S.teams.map((x, i) => '<option value="' + i + '"' + (x.id === t.id ? ' selected' : '') + '>' + (i + 1) + '</option>').join('') + '</select></label>'),
@@ -1957,9 +1977,10 @@ function teamDialog(t, asLead){
       const parent = lead ? null : (f.elements.parent.value || null);
       commit(() => {
         const desc = !lead && f.elements.desc ? f.elements.desc.value.trim() : '';
-        if(isNew) S.teams.push(lead ? {id:uid('t'), name, parent:null, lead:true} : Object.assign({id:uid('t'), name, parent, multi: !!f.elements.multi.checked}, desc ? {desc} : {}));
+        const resp = !lead && f.elements.resp ? f.elements.resp.value.split('\n').map(x => x.replace(/^\s*[-•*·]\s*/, '').trim()).filter(Boolean) : [];
+        if(isNew) S.teams.push(lead ? {id:uid('t'), name, parent:null, lead:true} : Object.assign({id:uid('t'), name, parent, multi: !!f.elements.multi.checked}, desc ? {desc} : {}, resp.length ? {resp} : {}));
         else {
-          const cur = S.teams.find(x => x.id === t.id); cur.name = name; if(!lead){ setParent(cur, parent); if(f.elements.multi.checked !== isMulti(cur)) cur.multi = f.elements.multi.checked; if(desc) cur.desc = desc; else delete cur.desc; }
+          const cur = S.teams.find(x => x.id === t.id); cur.name = name; if(!lead){ setParent(cur, parent); if(f.elements.multi.checked !== isMulti(cur)) cur.multi = f.elements.multi.checked; if(desc) cur.desc = desc; else delete cur.desc; if(resp.length) cur.resp = resp; else delete cur.resp; }
           const pos = +f.elements.pos.value, idx = S.teams.indexOf(cur);
           if(pos !== idx){ S.teams.splice(idx, 1); S.teams.splice(pos, 0, cur); }
         }

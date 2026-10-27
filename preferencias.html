@@ -28,7 +28,9 @@ select,textarea{width:100%;font:inherit;color:var(--ink);background:#0F182B;bord
 select{min-height:46px}
 textarea{min-height:76px;resize:vertical}
 select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
-.desc{font-size:13px;color:var(--muted);margin:6px 2px 0;min-height:0}
+.desc{font-size:13px;color:var(--muted);margin:6px 2px 0;min-height:0;white-space:pre-line}
+.resp{font-size:13px;color:var(--muted);margin:4px 0 0;padding-left:20px}
+.resp:empty{display:none}
 .actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:18px}
 button.primary{min-height:48px;padding:0 22px;border:none;border-radius:12px;background:var(--accent);color:var(--accent-ink);font:inherit;font-weight:800;cursor:pointer}
 button.primary:disabled{opacity:.5;cursor:default}
@@ -86,7 +88,7 @@ function render(){
     return '<div class="card slot' + (req ? '' : ' opt') + '"><div class="slot-head"><span class="num" aria-hidden="true">' + (i + 1) + '</span><div><b>' + ['Primera opción', 'Segunda opción', 'Tercera opción'][i] + '</b> <span>' + (req ? 'obligatoria' : 'opcional') + '</span></div></div>' +
       '<label for="t' + i + '">Equipo</label><select id="t' + i + '" data-i="' + i + '"' + (req ? ' required' : '') + '><option value="">' + (req ? 'Elegí un equipo' : '— Ninguna —') + '</option>' +
       teams.map(t => '<option value="' + esc(t.id) + '"' + (c.team === t.id ? ' selected' : '') + '>' + esc(t.name) + '</option>').join('') + '</select>' +
-      '<p class="desc" id="d' + i + '"></p>' +
+      '<p class="desc" id="d' + i + '"></p><ul class="resp" id="r' + i + '"></ul>' +
       '<label for="w' + i + '">¿Por qué te interesa? <span style="font-weight:400">(opcional)</span></label><textarea id="w' + i + '" maxlength="500" placeholder="Qué te atrae de este equipo, qué podrías aportar…">' + esc(c.why || '') + '</textarea></div>';
   };
   app.innerHTML = head +
@@ -108,6 +110,8 @@ function sync(){
     [...s.options].forEach(o => { if(o.value) o.disabled = vals.some((v, j) => j !== i && v === o.value); });
     const t = teamById(s.value);
     document.getElementById('d' + i).textContent = t && t.desc ? t.desc : '';
+    const ul = document.getElementById('r' + i); ul.textContent = '';
+    ((t && t.resp) || []).forEach(r => { const li = document.createElement('li'); li.textContent = r; ul.appendChild(li); });
   });
 }
 async function save(e){
