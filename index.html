@@ -502,6 +502,10 @@ body.locked .drawer{display:none!important}
 .stat.clickable{cursor:pointer}
 .stat.clickable:hover{outline:2px solid var(--line)}
 .stat.clickable:focus-visible{outline:2px solid var(--accent)}
+
+.imp-h{margin:14px 0 6px;font-size:14px;font-weight:800}
+.imp-list{margin:0;padding-left:18px;font-size:13px;line-height:1.6;max-height:240px;overflow:auto}
+.imp-list .muted{color:var(--muted)}
 </style>
 </head>
 <body>
@@ -2017,29 +2021,64 @@ function importDialog(){
     f => {
       const lines = f.elements.csv.value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
       if(!lines.length) return false;
-      let added = 0;
-      commit(() => {
-        if(f.elements.replace.checked) S.people = [];
-        lines.forEach(line => {
-          const parts = line.split(/\t|;|,/).map(x => x.trim());
-          const name = parts[0]; if(!name || /^nombre$/i.test(name)) return;
-          const rRaw = parts[1] || '', tRaw = parts[2] || '', company = /^tma$/i.test(parts[3] || '') ? EXT : /^(terceros?|proveedor(es)?)$/i.test(parts[3] || '') ? THIRD : HOME, spec = parts[4] || '', skill = /^[1-5]$/.test(parts[5] || '') ? +parts[5] : null;
-          let r = S.roles.find(x => x.short.toLowerCase() === rRaw.toLowerCase() || x.label.toLowerCase() === rRaw.toLowerCase());
-          if(!r && rRaw){ r = {id:uid('r'), label:rRaw, short:rRaw.slice(0,3).toUpperCase(), color:'#5D5D72'}; S.roles.push(r); }
-          let team = UN;
-          if(tRaw && !/^sin asignar$/i.test(tRaw)){
-            let t = S.teams.find(x => x.name.toLowerCase() === tRaw.toLowerCase());
-            if(!t){ t = {id:uid('t'), name:tRaw}; S.teams.push(t); }
-            team = t.id;
-          }
-          S.people.push({id:uid('p'), name, role: r ? r.id : (S.roles[0] || {}).id, team, company, spec, skill});
-          added++;
-        });
+      const replace = f.elements.replace.checked;
+      const recs = [];
+      lines.forEach(line => {
+        const parts = line.split(/\t|;|,/).map(x => x.trim());
+        const name = parts[0]; if(!name || /^nombre$/i.test(name)) return;
+        recs.push({name, rRaw: parts[1] || '', tRaw: parts[2] || '',
+          company: /^tma$/i.test(parts[3] || '') ? EXT : /^(terceros?|proveedor(es)?)$/i.test(parts[3] || '') ? THIRD : HOME,
+          spec: parts[4] || '', skill: /^[1-5]$/.test(parts[5] || '') ? +parts[5] : null});
       });
-      toast(added + ' personas importadas');
+      // quiénes ya están: mismo nombre y apellido (en cualquier orden, sin tildes) = repetido; 2+ palabras en común = posible
+      const existing = replace ? [] : S.people.slice();
+      const dup = [], maybe = [], fresh = [], seen = [];
+      recs.forEach(r => {
+        const k = nameTokens(r.name);
+        const same = existing.concat(seen).find(p => sameName(k, nameTokens(p.name)));
+        if(same){ dup.push([r, same]); return; }
+        const near = existing.find(p => nearName(k, nameTokens(p.name)));
+        if(near){ maybe.push([r, near]); return; }
+        fresh.push(r); seen.push({name:r.name, _paste:true});
+      });
+      const addAll = list => {
+        let n = 0;
+        commit(() => {
+          if(replace && list === fresh) S.people = [];
+          list.forEach(r => {
+            const nr = normName(r.rRaw);
+            let ro = S.roles.find(x => normName(x.short) === nr || normName(x.label) === nr);
+            if(!ro && r.rRaw){ ro = {id:uid('r'), label:r.rRaw, short:r.rRaw.slice(0,3).toUpperCase(), color:'#5D5D72'}; S.roles.push(ro); }
+            let team = UN;
+            if(r.tRaw && !/^sin asignar$/i.test(r.tRaw)){
+              let t = S.teams.find(x => normName(x.name) === normName(r.tRaw));
+              if(!t){ t = {id:uid('t'), name:r.tRaw}; S.teams.push(t); }
+              team = t.id;
+            }
+            S.people.push({id:uid('p'), name:r.name, role: ro ? ro.id : (S.roles[0] || {}).id, team, company:r.company, spec:r.spec, skill:r.skill});
+            n++;
+          });
+        });
+        return n;
+      };
+      const added = fresh.length ? addAll(fresh) : 0;
+      if(!dup.length && !maybe.length){ toast(added + ' personas importadas'); return; }
+      const row = ([r, p]) => p._paste ? '<li><b>' + esc(r.name) + '</b> <span class="muted">→ repetida en la lista que pegaste</span></li>' : '<li><b>' + esc(r.name) + '</b> <span class="muted">→ ya está como</span> ' + esc(p.name) + ' <span class="muted">· ' + esc(teamName(p.team)) + ' · ' + esc(role(p.role).label) + (p.company && p.company !== HOME ? ' · ' + esc(p.company) : '') + '</span></li>';
+      setTimeout(() => openDialog('Resultado de la importación',
+        '<p class="note"><b>' + added + '</b> ' + (added === 1 ? 'persona agregada' : 'personas agregadas') + '.</p>' +
+        (dup.length ? '<h4 class="imp-h">Ya estaban cargadas (' + dup.length + ') · no se agregaron</h4><ul class="imp-list">' + dup.map(row).join('') + '</ul>' : '') +
+        (maybe.length ? '<h4 class="imp-h">Posibles repetidas (' + maybe.length + ') · revisalas</h4><p class="note">Comparten nombre y apellido con alguien cargado, pero no son idénticas. No se agregaron.</p><ul class="imp-list">' + maybe.map(row).join('') + '</ul>' : ''),
+        (maybe.length ? '<button class="btn" value="force">Agregar igual las posibles</button>' : '') + '<button class="btn primary" value="ok">Listo</button>',
+        (f2, v) => { if(v === 'force'){ const n = addAll(maybe.map(x => x[0])); toast(n + ' personas agregadas'); } }), 0);
     },
     f => f.querySelector('#pickJson').addEventListener('click', () => { dlg.close(); $('#fileIn').click(); }));
 }
+
+/* nombres: comparación sin tildes, mayúsculas ni orden */
+function normName(x){ return (x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9ñ ]+/g, ' ').replace(/\s+/g, ' ').trim(); }
+function nameTokens(x){ return normName(x).split(' ').filter(t => t.length > 1); }
+function sameName(a, b){ if(!a.length || a.length !== b.length) return false; const sb_ = [...b].sort(); return [...a].sort().every((t, i) => t === sb_[i]); }
+function nearName(a, b){ const common = a.filter(t => b.includes(t)); return common.length >= 2 && (common.length === Math.min(a.length, b.length) || common.length >= 3); }
 
 /* ---------- export / import file ---------- */
 function exportJson(){
