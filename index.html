@@ -354,6 +354,10 @@ body.locked .drawer{display:none!important}
 .db-filters label{display:flex;flex-direction:column;gap:2px;font-size:11px;font-weight:700;color:var(--muted)}
 .db-filters select,.db-filters input{height:34px;border:1px solid var(--line);border-radius:8px;padding:0 8px;background:var(--surface);color:var(--ink);font:inherit;font-size:13px;max-width:200px}
 .db-filters input{width:220px}
+
+.db-type{all:unset;cursor:pointer;font-size:11px;font-weight:800;padding:3px 8px;border-radius:999px;background:#ECECF3;color:#3F4152;white-space:nowrap}
+.db-type.multi{background:#EEEDFE;color:#3C3489}
+.db-type:focus-visible{outline:2px solid var(--accent)}
 </style>
 </head>
 <body>
@@ -594,7 +598,7 @@ function pump(){
   }
 }
 function cfgOf(x){ return {tribe:x.tribe, settings:x.settings, roles:x.roles}; }
-function teamDoc(t, i){ const d = {name:t.name, parent:t.parent == null ? null : t.parent, order:i}; if(t.lead) d.lead = true; return d; }
+function teamDoc(t, i){ const d = {name:t.name, parent:t.parent == null ? null : t.parent, order:i}; if(t.lead) d.lead = true; if(typeof t.multi === 'boolean') d.multi = t.multi; return d; }
 function personDoc(p){ const o = Object.assign({}, p); delete o.id; return o; }
 function sync(prev, next){
   if(JSON.stringify(cfgOf(prev)) !== JSON.stringify(cfgOf(next))){ const c = cfgOf(next); enqueue(() => DB.doc('meta/config').set(JSON.parse(JSON.stringify(c)))); }
@@ -1360,13 +1364,36 @@ function dbData(){
   const roles = S.roles.filter(r => used.has(r.id)).concat([...used].filter(id => !S.roles.some(r => r.id === id)).map(id => role(id)));
   const tot = roles.map(r => teams.reduce((a, x) => a + x.m.filter(p => p.role === r.id).length, 0));
   const N = tot.reduce((a, b) => a + b, 0);
-  const share = tot.map(v => N ? v / N : 0);
+  // la mezcla de referencia sale solo de los equipos multi-rol (los específicos la deformarían)
+  const multiT = teams.filter(x => isMulti(x.t));
+  const refT = multiT.length ? multiT : teams;
+  const refTot = roles.map(r => refT.reduce((a, x) => a + x.m.filter(p => p.role === r.id).length, 0));
+  const refN = refTot.reduce((a, b) => a + b, 0);
+  const share = refTot.map(v => refN ? v / refN : 0);
+  const leadIds = S.roles.filter(r => r.lead).map(r => r.id);
   const rows = teams.map(x => {
-    const n = x.m.length; if(!n) return {t: x.t, n: 0, cells: [], idx: 100}; let dev = 0;
-    const cells = roles.map((r, i) => { const v = x.m.filter(p => p.role === r.id).length, e = n * share[i]; dev += Math.abs(v - e); return {v, e, d: v - e}; });
-    return {t: x.t, n, cells, idx: Math.round((1 - dev / (2 * n)) * 100)};
+    const n = x.m.length; if(!n) return {t: x.t, n: 0, cells: [], idx: 100};
+    const counts = roles.map(r => x.m.filter(p => p.role === r.id).length);
+    if(isMulti(x.t)){
+      let dev = 0;
+      const cells = counts.map((v, i) => { const e = n * share[i]; dev += Math.abs(v - e); return {v, e, d: v - e}; });
+      const idx = Math.round((1 - dev / (2 * n)) * 100);
+      return {t: x.t, n, cells, idx, multi: true, why: 'su mezcla de roles se aleja de la de los equipos multi-rol'};
+    }
+    // equipo específico: se espera un rol principal (sin contar al líder); el índice es el foco
+    const spec = counts.map((v, i) => leadIds.includes(roles[i].id) ? 0 : v);
+    const sn = spec.reduce((a, b) => a + b, 0), top = Math.max(0, ...spec), ti = spec.indexOf(top);
+    const others = spec.filter((v, i) => v && i !== ti).length;
+    const cells = counts.map((v, i) => ({v, main: i === ti && top > 0, lead: leadIds.includes(roles[i].id)}));
+    const idx = sn ? Math.round(top / sn * 100) : 100;
+    return {t: x.t, n, cells, idx, multi: false, main: top ? roles[ti] : null, why: 'equipo específico con ' + (others + 1) + ' roles distintos: solo ' + idx + '% es ' + (top ? roles[ti].label : '—')};
   });
-  return {roles, tot, N, rows: rows.filter(r => r.n)};
+  return {roles, tot, N, rows: rows.filter(r => r.n), hasMulti: multiT.length > 0};
+}
+// equipos donde se espera mezcla de roles; el resto son específicos (un rol principal)
+function isMulti(t){
+  if(typeof t.multi === 'boolean') return t.multi;
+  return /integraci[oó]n\s+de\s+servici/i.test(t.name) || /soporte\s+(de\s+)?servicios/i.test(t.name) || /ingenier[ií]a\s+cloud/i.test(t.name);
 }
 // equipos que no se muestran en el gráfico C (por defecto, Diseño & Ingeniería y Soporte & Operación)
 function dbHiddenC(){
@@ -1382,7 +1409,7 @@ function renderDash(){
   const v = $('#dashView');
   if(!DB_V.open){ v.hidden = true; return; }
   v.hidden = false;
-  const {roles, tot, N, rows} = dbData();
+  const {roles, tot, N, rows, hasMulti} = dbData();
   const leadIds = S.roles.filter(r => r.lead).map(r => r.id);
   const leadName = leadIds.length ? leadIds.map(id => role(id).label).join(' / ') : 'líder';
   const hid = dbHidden();
@@ -1398,32 +1425,39 @@ function renderDash(){
   const pres = roles.map((r, i) => [r, rows.filter(x => x.cells[i].v).length]).sort((a, b) => a[1] - b[1] || b[0].label.localeCompare(a[0].label));
   const conc = pres.find(x => tot[roles.indexOf(x[0])] > 1) || pres[0];
   const kpi = (l, val, sub, warn, title) => '<div class="db-kpi' + (warn ? ' warn' : '') + '"' + (title ? ' title="' + esc(title) + '"' : '') + '><span>' + l + '</span><b>' + val + '</b><small>' + sub + '</small></div>';
-  let h = fbar + '<section class="db-sec"><h3>A · Indicadores de equilibrio</h3><p class="note">El índice compara la mezcla de roles de cada equipo con la mezcla promedio de la tribu: 100 = misma proporción.</p><div class="db-kpis">' +
+  let h = fbar + '<section class="db-sec"><h3>A · Indicadores de equilibrio</h3><p class="note">Equipos <b>multi-rol</b>: el índice compara su mezcla con la de los demás equipos multi-rol (100 = misma proporción). Equipos <b>específicos</b>: el índice es el foco, el % de su gente en el rol principal (sin contar al líder). Menos de 70 = desbalanceado.</p><div class="db-kpis">' +
     kpi('Índice de equilibrio', bal + '/100', 'promedio de los equipos', bal < 70) +
-    kpi('Equipos desbalanceados', unbal.length + ' de ' + rows.length, 'índice menor a 70', unbal.length > 0, unbal.map(r => r.t.name).join(', ')) +
+    kpi('Equipos desbalanceados', unbal.length + ' de ' + rows.length, unbal.filter(r => r.multi).length + ' multi-rol · ' + unbal.filter(r => !r.multi).length + ' específicos', unbal.length > 0, unbal.map(r => r.t.name + ': ' + r.why).join('\n')) +
     kpi('Equipos sin ' + leadName, leadIds.length ? noLead.length : '—', leadIds.length ? 'rol clave faltante' : 'marcá el rol líder en Configuración', noLead.length > 0, noLead.map(r => r.t.name).join(', ')) +
     (conc ? kpi('Rol más concentrado', esc(conc[0].label), 'presente en ' + conc[1] + ' de ' + rows.length + ' equipos', false) : '') +
     '</div></section>';
   // B · matriz
-  const col = (c, i) => {
+  const col = (c, i, r) => {
     if(c.v === 0 && leadIds.includes(roles[i].id)) return ['#F7C1C1', '#791F1F'];
+    if(!r.multi){
+      if(!c.v) return ['transparent', 'var(--muted)'];
+      if(c.main || c.lead) return ['#F1EFE8', '#444441'];
+      return ['#FAEEDA', '#633806'];
+    }
     if(c.d >= 1) return ['#E6F1FB', '#0C447C'];
     if(c.d <= -1) return ['#FCEBEB', '#791F1F'];
     return ['#F1EFE8', '#444441'];
   };
-  h += '<section class="db-sec"><h3>B · Matriz equipo × rol</h3><p class="note">Cantidad de personas por rol. El color compara con lo esperado si el equipo tuviera la mezcla promedio. Pasá el mouse para ver el esperado; hacé clic para ver esas personas en la lista.</p>' +
-    '<div class="db-leg"><span><i style="background:#E6F1FB;border:1px solid #85B7EB"></i>Sobra (1 o más sobre lo esperado)</span><span><i style="background:#F1EFE8"></i>En línea</span><span><i style="background:#FCEBEB;border:1px solid #F09595"></i>Falta</span>' + (leadIds.length ? '<span><i style="background:#F7C1C1"></i>Sin ' + esc(leadName) + '</span>' : '') + '</div>' +
-    '<div class="db-hm-wrap"><table class="db-hm"><thead><tr><th class="t">Equipo</th>' + roles.map(r => '<th title="' + esc(r.label) + '"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:' + esc(r.color) + ';margin-right:4px"></span>' + esc(r.short) + '</th>').join('') + '<th>Total</th><th>Índice</th></tr></thead><tbody>' +
-    rows.map(r => '<tr><td class="t">' + esc(r.t.name) + '</td>' + r.cells.map((c, i) => { const [bg, fg] = col(c, i); return '<td class="c" data-act="dash-cell" data-tid="' + r.t.id + '" data-rid="' + esc(roles[i].id) + '" style="background:' + bg + ';color:' + fg + '" title="' + esc(roles[i].label) + ': ' + c.v + ' · esperado ' + c.e.toFixed(1) + '">' + c.v + '</td>'; }).join('') +
-      '<td class="muted">' + r.n + '</td><td style="font-weight:800;color:' + (r.idx < 70 ? 'var(--warn)' : 'var(--muted)') + '">' + r.idx + '</td></tr>').join('') +
-    '<tr><td class="t muted">Tribu</td>' + tot.map(v => '<td class="muted">' + v + '</td>').join('') + '<td class="muted">' + N + '</td><td></td></tr></tbody></table></div></section>';
+  h += '<section class="db-sec"><h3>B · Matriz equipo × rol</h3><p class="note">Cantidad de personas por rol. En los multi-rol el color compara con lo esperado según la mezcla multi-rol; en los específicos marca lo que queda fuera de su rol principal. Tocá el tipo para cambiarlo y una celda para ver esas personas.</p>'+(hasMulti ? '' : '<p class="note" style="color:var(--warn)">Ningún equipo visible es multi-rol: la referencia es el total.</p>')+'' +
+    '<div class="db-leg"><span><i style="background:#E6F1FB;border:1px solid #85B7EB"></i>Sobra (1 o más sobre lo esperado)</span><span><i style="background:#F1EFE8"></i>En línea</span><span><i style="background:#FCEBEB;border:1px solid #F09595"></i>Falta</span><span><i style="background:#FAEEDA;border:1px solid #EF9F27"></i>Fuera del foco (equipo específico)</span>' + (leadIds.length ? '<span><i style="background:#F7C1C1"></i>Sin ' + esc(leadName) + '</span>' : '') + '</div>' +
+    '<div class="db-hm-wrap"><table class="db-hm"><thead><tr><th class="t">Equipo</th><th>Tipo</th>' + roles.map(r => '<th title="' + esc(r.label) + '"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:' + esc(r.color) + ';margin-right:4px"></span>' + esc(r.short) + '</th>').join('') + '<th>Total</th><th>Índice</th></tr></thead><tbody>' +
+    rows.map(r => '<tr><td class="t">' + esc(r.t.name) + '</td><td><button class="db-type' + (r.multi ? ' multi' : '') + '" data-act="dash-type" data-tid="' + r.t.id + '" title="Tocá para cambiar a ' + (r.multi ? 'específico' : 'multi-rol') + '">' + (r.multi ? 'Multi-rol' : 'Específico') + '</button></td>' + r.cells.map((c, i) => { const [bg, fg] = col(c, i, r);
+        const tip = roles[i].label + ': ' + c.v + (r.multi ? ' · esperado ' + c.e.toFixed(1) : c.main ? ' · rol principal' : c.lead ? '' : c.v ? ' · fuera del foco del equipo' : '');
+        return '<td class="c" data-act="dash-cell" data-tid="' + r.t.id + '" data-rid="' + esc(roles[i].id) + '" style="background:' + bg + ';color:' + fg + '" title="' + esc(tip) + '">' + c.v + '</td>'; }).join('') +
+      '<td class="muted">' + r.n + '</td><td style="font-weight:800;color:' + (r.idx < 70 ? 'var(--warn)' : 'var(--muted)') + '" title="' + esc(r.multi ? 'Parecido a la mezcla multi-rol' : 'Foco en ' + (r.main ? r.main.label : '—')) + '">' + r.idx + '</td></tr>').join('') +
+    '<tr><td class="t muted">Tribu</td><td></td>' + tot.map(v => '<td class="muted">' + v + '</td>').join('') + '<td class="muted">' + N + '</td><td></td></tr></tbody></table></div></section>';
   // C · composición
   const hideC = dbHiddenC();
-  const bar = (label, counts, n, flag, ref, tid) => '<div class="db-row"><span' + (ref ? ' style="color:var(--muted)"' : '') + '>' + (tid ? '<button class="db-x" data-act="dash-hide-c" data-tid="' + tid + '" title="Ocultar de este gráfico" aria-label="Ocultar ' + esc(label) + ' del gráfico">✕</button>' : '') + esc(label) + (flag ? '<span class="db-pill">desbalanceado</span>' : '') + '</span><div class="db-bar">' +
+  const bar = (label, counts, n, flag, ref, tid) => '<div class="db-row"><span' + (ref ? ' style="color:var(--muted)"' : '') + '>' + (tid ? '<button class="db-x" data-act="dash-hide-c" data-tid="' + tid + '" title="Ocultar de este gráfico" aria-label="Ocultar ' + esc(label) + ' del gráfico">✕</button>' : '') + esc(label) + (flag ? '<span class="db-pill"' + (typeof flag === 'string' ? ' title="' + esc(flag) + '"' : '') + '>desbalanceado</span>' : '') + '</span><div class="db-bar">' +
     counts.map((v, i) => v ? '<span title="' + esc(roles[i].label) + ': ' + v + ' (' + Math.round(v / n * 100) + '%)" style="width:' + (v / n * 100) + '%;background:' + esc(roles[i].color) + '"></span>' : '').join('') + '</div><span style="font-size:12px;color:var(--muted);text-align:right">' + n + ' pers.</span></div>';
   const hiddenRows = rows.filter(r => hideC.includes(r.t.id));
   h += '<section class="db-sec"><h3>C · Composición de cada equipo (100%)</h3><p class="note">Proporción de cada rol dentro del equipo. Con la ✕ sacás un equipo de este gráfico.</p><div class="db-leg">' + roles.map(r => '<span><i style="background:' + esc(r.color) + '"></i>' + esc(r.label) + '</span>').join('') + '</div>' +
-    rows.filter(r => !hideC.includes(r.t.id)).map(r => bar(r.t.name, r.cells.map(c => c.v), r.n, r.idx < 70, false, r.t.id)).join('') +
+    rows.filter(r => !hideC.includes(r.t.id)).map(r => bar(r.t.name, r.cells.map(c => c.v), r.n, r.idx < 70 ? r.why : false, false, r.t.id)).join('') +
     (hiddenRows.length ? '<div class="db-leg" style="margin-top:10px">Ocultos: ' + hiddenRows.map(r => '<button class="lv-chip" data-act="dash-show-c" data-tid="' + r.t.id + '" title="Volver a mostrar">' + esc(r.t.name) + ' ↺</button>').join('') + '</div>' : '') + '</section>';
   $('#dbBody').innerHTML = h;
 }
@@ -1515,7 +1549,8 @@ function teamDialog(t, asLead){
   openDialog(lead ? (isNew ? 'Nueva estructura aparte' : 'Editar estructura aparte') : (isNew ? 'Nuevo equipo' : 'Editar equipo'),
     '<label class="field">' + (lead ? 'Nombre (ej: B2B)' : 'Nombre del equipo') + '<input name="name" required value="' + esc(t.name) + '"></label>' +
     (lead ? '<p class="note">Queda al mismo nivel que ' + esc(S.tribe.lead || 'el líder de tribu') + ', sin líder. Las personas y equipos que pongas ahí no cuentan en los totales, promedios ni alertas de esta estructura. Para sumarle equipos, elegila en "Reporta a" de cada equipo.</p>'
-      : '<label class="field">Reporta a<select name="parent">' + parentOpts + '</select></label>') +
+      : '<label class="field">Reporta a<select name="parent">' + parentOpts + '</select></label>' +
+        '<label class="field" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="multi"' + (t.name && isMulti(t) ? ' checked' : '') + ' style="width:auto;height:auto"> Equipo multi-rol (se espera una mezcla de roles; si no, es específico)</label>') +
     (isNew ? '' : lead ? '<p class="note">Si la eliminás, su gente pasa a "Sin asignar" y sus equipos quedan sin ubicar.</p>' : '<p class="note">Si eliminás el equipo, sus integrantes pasan a "Sin asignar" y los equipos que le reportan pasan a reportar a su superior.</p>') +
     (isNew ? '' : '<label class="field">Posición<select name="pos">' + S.teams.map((x, i) => '<option value="' + i + '"' + (x.id === t.id ? ' selected' : '') + '>' + (i + 1) + '</option>').join('') + '</select></label>'),
     (isNew ? '' : '<button class="btn danger left" value="delete">Eliminar equipo</button>') +
@@ -1532,9 +1567,9 @@ function teamDialog(t, asLead){
       const name = f.elements.name.value.trim(); if(!name) return false;
       const parent = lead ? null : (f.elements.parent.value || null);
       commit(() => {
-        if(isNew) S.teams.push(lead ? {id:uid('t'), name, parent:null, lead:true} : {id:uid('t'), name, parent});
+        if(isNew) S.teams.push(lead ? {id:uid('t'), name, parent:null, lead:true} : {id:uid('t'), name, parent, multi: !!f.elements.multi.checked});
         else {
-          const cur = S.teams.find(x => x.id === t.id); cur.name = name; if(!lead) setParent(cur, parent);
+          const cur = S.teams.find(x => x.id === t.id); cur.name = name; if(!lead){ setParent(cur, parent); if(f.elements.multi.checked !== isMulti(cur)) cur.multi = f.elements.multi.checked; }
           const pos = +f.elements.pos.value, idx = S.teams.indexOf(cur);
           if(pos !== idx){ S.teams.splice(idx, 1); S.teams.splice(pos, 0, cur); }
         }
@@ -1670,6 +1705,7 @@ document.addEventListener('click', e => {
   else if(act === 'dash-open'){ DB_V.open = true; renderDash(); $('#dashView').focus(); }
   else if(act === 'dash-hide-c'){ const cur = dbHiddenC().slice(); commit(() => { S.settings.dashHideC = cur.concat(el.dataset.tid); }); }
   else if(act === 'dash-show-c'){ const cur = dbHiddenC().slice(); commit(() => { S.settings.dashHideC = cur.filter(x => x !== el.dataset.tid); }); }
+  else if(act === 'dash-type'){ const t = S.teams.find(x => x.id === el.dataset.tid); if(t){ const nv = !isMulti(t); commit(() => { t.multi = nv; }); } }
   else if(act === 'dash-clear'){ DB_V.f = {}; renderDash(); }
   else if(act === 'dash-close'){ DB_V.open = false; renderDash(); }
   else if(act === 'dash-cell'){ LV.fTeam = el.dataset.tid; LV.fRole = el.dataset.rid; LV.filter = 'all'; LV.q = ''; LV.open = true; LV.back = true; DB_V.open = false; renderDash(); renderList(); }
