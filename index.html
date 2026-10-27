@@ -358,6 +358,17 @@ body.locked .drawer{display:none!important}
 .db-type{all:unset;cursor:pointer;font-size:11px;font-weight:800;padding:3px 8px;border-radius:999px;background:#ECECF3;color:#3F4152;white-space:nowrap}
 .db-type.multi{background:#EEEDFE;color:#3C3489}
 .db-type:focus-visible{outline:2px solid var(--accent)}
+
+.org-filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.org-filters select{height:34px;border:1px solid #DCDCE8;border-radius:10px;padding:0 8px;background:var(--surface);color:var(--ink);font:inherit;font-size:13px;max-width:190px}
+.org-filters select.on{border-color:var(--accent);background:#ECEBFA;color:var(--accent);font-weight:700}
+.of-count{font-size:12px;font-weight:700;color:var(--muted)}
+.search-nav{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.search-nav b{color:var(--ink)}
+.team.nohit{opacity:.45}
+@keyframes flashring{0%,100%{box-shadow:0 0 0 0 transparent}30%{box-shadow:0 0 0 6px #4B3FC955}}
+.flash{animation:flashring 1.2s ease-out 2}
+@media (prefers-reduced-motion:reduce){.flash{animation:none;outline:3px solid var(--accent)}}
 </style>
 </head>
 <body>
@@ -405,8 +416,10 @@ body.locked .drawer{display:none!important}
   <label class="search">
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="6" cy="6" r="4.5"/><path d="M9.5 9.5L13 13"/></svg>
     <span class="sr">Buscar</span>
-    <input id="search" type="search" placeholder="Buscar persona o rol">
+    <input id="search" type="search" placeholder="Buscar persona o rol (Enter = siguiente)">
   </label>
+  <div class="search-nav" id="searchNav" hidden role="status"></div>
+  <div class="org-filters" id="orgFilters"></div>
   <button class="btn ghost" data-act="skill-view" id="skillViewBtn" aria-pressed="false">Color por skill</button>
   <button class="btn ghost" data-act="expand-all">Ampliar todos</button>
   <button class="btn ghost" data-act="collapse-all">Achicar todos</button>
@@ -792,7 +805,7 @@ function matches(p){
   const q = query.toLowerCase(), r = role(p.role);
   return p.name.toLowerCase().includes(q) || (p.title || '').toLowerCase().includes(q) || (p.manager || '').toLowerCase().includes(q) || (p.spec || '').toLowerCase() === q || r.label.toLowerCase().includes(q) || r.short.toLowerCase() === q || (p.company || '').toLowerCase() === q || (p.vendor || '').toLowerCase().includes(q);
 }
-function personClass(p){ return query ? (matches(p) ? ' hit' : ' dim') : ''; }
+function personClass(p){ return (query || (typeof ofActive === 'function' && ofActive())) ? (isHit(p) ? ' hit' : ' dim') : ''; }
 function toast(msg){
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
   clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 1800);
@@ -858,7 +871,7 @@ function render(){
   $('#tribeName').textContent = S.tribe.name || 'Mi tribu';
   document.title = 'Organigrama · ' + (S.tribe.name || '');
   $('#undoBtn').disabled = !hist.length;
-  renderStats(); renderLegend(); renderTree(); renderPool(); renderList(); renderDash();
+  renderStats(); renderLegend(); renderTree(); renderPool(); renderList(); renderDash(); renderOrgFilters(); renderSearchNav();
   const svb = $('#skillViewBtn'); if(svb){ svb.classList.toggle('on', skillView); svb.setAttribute('aria-pressed', skillView); }
   renderNotes();
 }
@@ -1116,7 +1129,7 @@ function teamCard(t){
   const col = !!(S.collapsed || {})[t.id];
   const subTotal = kids.length ? descendants(t.id).reduce((s, id) => s + membersOf(id).length, a.n) : 0;
   let h = '' +
-        '<article class="team' + (a.over ? ' over' : '') + (exp && !col ? ' wide' : '') + (floating ? ' float' : '') + (col ? ' collapsed' : '') + '" style="border-width:' + borderFor(a.n) + 'px" data-drop="' + t.id + '" aria-label="Equipo ' + esc(t.name) + '">' +
+        '<article class="team' + ((query || ofActive()) && !a.m.some(isHit) ? ' nohit' : '') + (a.over ? ' over' : '') + (exp && !col ? ' wide' : '') + (floating ? ' float' : '') + (col ? ' collapsed' : '') + '" style="border-width:' + borderFor(a.n) + 'px" data-drop="' + t.id + '" aria-label="Equipo ' + esc(t.name) + '">' +
           (floating ? '<div class="float-tag">Fuera de la tribu</div>' : '') + '<div class="team-head">' + ringSvg(a.n, max, a.over) +
             '<div style="min-width:0"><h2>' + esc(t.name) + '</h2><div class="sub">' + a.n + ' de ' + max + ' · ' + a.present.length + (a.present.length === 1 ? ' rol' : ' roles') + '</div>' +
             (a.ext ? '<div class="sub ext">' + a.ext + ' de TMA</div>' : '') +
@@ -1706,6 +1719,8 @@ document.addEventListener('click', e => {
   else if(act === 'dash-hide-c'){ const cur = dbHiddenC().slice(); commit(() => { S.settings.dashHideC = cur.concat(el.dataset.tid); }); }
   else if(act === 'dash-show-c'){ const cur = dbHiddenC().slice(); commit(() => { S.settings.dashHideC = cur.filter(x => x !== el.dataset.tid); }); }
   else if(act === 'dash-type'){ const t = S.teams.find(x => x.id === el.dataset.tid); if(t){ const nv = !isMulti(t); commit(() => { t.multi = nv; }); } }
+  else if(act === 'of-clear'){ OF_FIELDS.forEach(([k]) => OF[k] = ''); renderTree(); renderPool(); renderOrgFilters(); renderSearchNav(); }
+  else if(act === 'sn-next' || act === 'sn-prev'){ const l = searchHits(); if(l.length){ SN.i = (SN.i + (act === 'sn-next' ? 1 : -1) + l.length) % l.length; goToPerson(l[SN.i]); } }
   else if(act === 'dash-clear'){ DB_V.f = {}; renderDash(); }
   else if(act === 'dash-close'){ DB_V.open = false; renderDash(); }
   else if(act === 'dash-cell'){ LV.fTeam = el.dataset.tid; LV.fRole = el.dataset.rid; LV.filter = 'all'; LV.q = ''; LV.open = true; LV.back = true; DB_V.open = false; renderDash(); renderList(); }
@@ -1763,6 +1778,79 @@ document.addEventListener('change', e => {
   toast(t.name + (parent === FLOAT ? ' → sin ubicar' : ' → reporta a ' + (parent ? S.teams.find(x => x.id === parent).name : (S.tribe.lead || 'Líder de tribu'))));
 });
 $('#search').addEventListener('input', e => { query = e.target.value.trim(); renderTree(); renderPool(); });
+/* ---------- filtros del organigrama y salto a la persona buscada ---------- */
+const OF = {role:'', company:'', vendor:'', spec:'', skill:''};
+const OF_FIELDS = [['role', 'Rol'], ['company', 'Compañía'], ['vendor', 'Proveedor'], ['spec', 'Especialidad'], ['skill', 'Skill']];
+function ofActive(){ return OF_FIELDS.some(([k]) => OF[k]); }
+function ofPass(p){
+  if(OF.role && (OF.role === '∅' ? hasRole(p) : p.role !== OF.role)) return false;
+  if(OF.company && (p.company || HOME) !== OF.company) return false;
+  if(OF.vendor && (OF.vendor === '∅' ? !!p.vendor : p.vendor !== OF.vendor)) return false;
+  if(OF.spec && (OF.spec === '∅' ? !!p.spec : p.spec !== OF.spec)) return false;
+  if(OF.skill && (OF.skill === '∅' ? !!skillOf(p) : String(skillOf(p)) !== OF.skill)) return false;
+  return true;
+}
+function isHit(p){ return matches(p) && ofPass(p); }
+function renderOrgFilters(){
+  const box = $('#orgFilters'); if(!box) return;
+  if(box.contains(document.activeElement) && document.activeElement.tagName === 'SELECT') return;
+  const uniq = k => [...new Set(S.people.map(p => p[k]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+  const opts = {
+    role: S.roles.map(r => [r.id, r.label]).concat([['∅', 'Sin rol']]),
+    company: COMPANIES.map(c => [c, c]),
+    vendor: uniq('vendor').map(v => [v, v]).concat([['∅', '(sin proveedor)']]),
+    spec: uniq('spec').map(v => [v, v]).concat([['∅', '(sin especialidad)']]),
+    skill: ['5','4','3','2','1'].map(v => [v, v]).concat([['∅', 'Sin evaluar']])
+  };
+  const n = (query || ofActive()) ? S.people.filter(isHit).length : null;
+  box.innerHTML = OF_FIELDS.map(([k, l]) => '<select data-of="' + k + '" aria-label="Filtrar por ' + l + '"' + (OF[k] ? ' class="on"' : '') + '><option value="">' + l + ': todos</option>' +
+    opts[k].map(([v, t]) => '<option value="' + esc(v) + '"' + (OF[k] === v ? ' selected' : '') + '>' + l + ': ' + esc(t) + '</option>').join('') + '</select>').join('') +
+    (n != null ? '<span class="of-count">' + n + (n === 1 ? ' coincide' : ' coinciden') + '</span>' : '') +
+    (ofActive() ? '<button class="btn ghost" data-act="of-clear">Limpiar filtros</button>' : '');
+}
+$('#orgFilters').addEventListener('change', e => {
+  const k = e.target.dataset && e.target.dataset.of; if(!k) return;
+  OF[k] = e.target.value; e.target.blur(); renderTree(); renderPool(); renderOrgFilters(); renderSearchNav();
+});
+// salto a la persona buscada
+const SN = {i:0, list:[]};
+function searchHits(){ return query ? S.people.filter(isHit) : []; }
+function renderSearchNav(){
+  const nav = $('#searchNav'); SN.list = searchHits();
+  if(!query){ nav.hidden = true; return; }
+  nav.hidden = false;
+  if(!SN.list.length){ nav.innerHTML = '<span>Sin resultados</span>'; return; }
+  if(SN.i >= SN.list.length) SN.i = 0;
+  const p = SN.list[SN.i];
+  nav.innerHTML = '<button class="mini" data-act="sn-prev" aria-label="Anterior" title="Anterior (Shift+Enter)">‹</button><span>' + (SN.i + 1) + ' de ' + SN.list.length + ' · <b>' + esc(p.name) + '</b> en ' + esc(teamName(p.team)) + '</span><button class="mini" data-act="sn-next" aria-label="Siguiente" title="Siguiente (Enter)">›</button>';
+}
+function goToPerson(p){
+  if(!p) return;
+  // abrir el camino hasta el equipo: ancestros desplegados y el equipo ampliado
+  if(S.teams.some(t => t.id === p.team)){
+    S.collapsed = S.collapsed || {};
+    let t = S.teams.find(x => x.id === p.team), n = 0;
+    S.expanded[t.id] = true; delete S.collapsed[t.id];
+    while(t && n++ < 100){ delete S.collapsed[t.id]; t = S.teams.find(x => x.id === t.parent); }
+    save(); renderTree();
+  }
+  renderSearchNav();
+  requestAnimationFrame(() => {
+    const el = document.querySelector('#tree [data-pid="' + p.id + '"], #floatPanel [data-pid="' + p.id + '"], .pools [data-pid="' + p.id + '"]');
+    if(!el) return;
+    const card = el.closest('.team') || el.closest('.pool');
+    el.scrollIntoView({behavior:'smooth', block:'center', inline:'center'});
+    [el, card].forEach(x => { if(!x) return; x.classList.remove('flash'); void x.offsetWidth; x.classList.add('flash'); });
+  });
+}
+let snT;
+$('#search').addEventListener('input', () => { clearTimeout(snT); SN.i = 0; renderOrgFilters(); snT = setTimeout(() => { const l = searchHits(); if(l.length) goToPerson(l[0]); else renderSearchNav(); }, 350); });
+$('#search').addEventListener('keydown', e => {
+  if(e.key !== 'Enter') return; e.preventDefault(); clearTimeout(snT);
+  const l = searchHits(); if(!l.length) return;
+  SN.i = (SN.i + (e.shiftKey ? -1 : 1) + l.length) % l.length; goToPerson(l[SN.i]);
+});
+
 document.addEventListener('keydown', e => {
   if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !dlg.open && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){ e.preventDefault(); undo(); }
 });
