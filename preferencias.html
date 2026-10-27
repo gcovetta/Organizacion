@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>¿Dónde te gustaría estar?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+:root{--bg:#0D1424;--surface:#141D32;--surface-2:#1C2740;--ink:#E6EDF8;--muted:#8EA0BF;--line:#2B3A5C;--accent:#4CC3F0;--accent-ink:#0D1424;--warn:#FFB45E;--warn-bg:#3A2C1A;--ok:#7FE6C2;--ok-bg:#12302A;--err:#FF9C9C;--err-bg:#3A1A20;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Manrope',system-ui,sans-serif;font-size:15px;line-height:1.5}
+main{max-width:720px;margin:0 auto;padding:32px 20px 64px}
+.eyebrow{font-size:12px;font-weight:800;color:var(--accent);letter-spacing:.02em}
+h1{margin:4px 0 6px;font-size:26px;font-weight:800;line-height:1.2}
+.lead{color:var(--muted);margin:0 0 24px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px 20px;margin-bottom:14px}
+.slot-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.num{width:30px;height:30px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:flex;align-items:center;justify-content:center;font-weight:800;flex:0 0 30px}
+.slot.opt .num{background:var(--surface-2);color:var(--ink);border:1px solid var(--line)}
+.slot-head b{font-size:16px}
+.slot-head div span{font-size:13px;color:var(--muted)}
+label{display:block;font-size:13px;font-weight:700;color:var(--muted);margin:10px 0 4px}
+select,textarea{width:100%;font:inherit;color:var(--ink);background:#0F182B;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+select{min-height:46px}
+textarea{min-height:76px;resize:vertical}
+select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
+.desc{font-size:13px;color:var(--muted);margin:6px 2px 0;min-height:0}
+.actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:18px}
+button.primary{min-height:48px;padding:0 22px;border:none;border-radius:12px;background:var(--accent);color:var(--accent-ink);font:inherit;font-weight:800;cursor:pointer}
+button.primary:disabled{opacity:.5;cursor:default}
+.msg{font-size:14px;font-weight:700;padding:10px 14px;border-radius:10px}
+.msg.ok{background:var(--ok-bg);color:var(--ok)}
+.msg.err{background:var(--err-bg);color:var(--err)}
+.msg.warn{background:var(--warn-bg);color:var(--warn)}
+.note{font-size:13px;color:var(--muted)}
+.ro li{margin:6px 0}
+.ro small{color:var(--muted)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+</style>
+</head>
+<body>
+<main id="app" aria-live="polite">
+  <p class="note">Cargando…</p>
+</main>
+<script>
+(function(){
+'use strict';
+const SUPABASE_URL = 'https://fvshxbxevlvyubtgbirs.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ2c2h4Ynhldmx2eXVidGdiaXJzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIyMDY4NTYsImV4cCI6MjEwNzc4Mjg1Nn0.fb0LmZ_byBY12_qK8U-ZdxR9mw2xDyXdi5Ne1ewvmEs';
+const app = document.getElementById('app');
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const token = new URLSearchParams(location.search).get('t') || '';
+const fail = (title, text) => { app.innerHTML = '<div class="eyebrow">Consulta de preferencias</div><h1>' + esc(title) + '</h1><p class="lead">' + esc(text) + '</p>'; };
+
+if(!window.supabase){ fail('No se pudo cargar la página', 'Revisá tu conexión y volvé a abrir el link.'); return; }
+if(!/^[0-9a-f-]{36}$/i.test(token)){ fail('Link incompleto', 'Abrí el link exactamente como te llegó. Si sigue sin funcionar, pedí uno nuevo.'); return; }
+// sin sesión guardada: el link no depende de ningún usuario
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {auth:{persistSession:false, autoRefreshToken:false}});
+
+let D = null;
+async function load(){
+  const {data, error} = await sb.rpc('pref_get', {p_token: token});
+  if(error){ fail('No se pudo abrir la consulta', 'Probá de nuevo en un rato. Si sigue igual, avisale a quien te mandó el link.'); return; }
+  if(!data){ fail('Este link no es válido', 'Puede que lo hayan reemplazado por uno nuevo. Pedile el link actualizado a quien te lo mandó.'); return; }
+  D = data; render();
+}
+function teamById(id){ return (D.teams || []).find(t => t.id === id); }
+function render(){
+  const first = (D.name || '').split(' ')[0];
+  const ch = Array.isArray(D.choices) ? D.choices : [];
+  const head = '<div class="eyebrow">Consulta de preferencias · solo para líderes</div><h1>Hola ' + esc(first) + ', ¿dónde te gustaría estar?</h1>';
+  if(!D.open){
+    app.innerHTML = head + '<p class="lead">La consulta ya está cerrada. Esto es lo que dejaste:</p>' +
+      (ch.length ? '<div class="card ro"><ol>' + ch.map(c => { const t = teamById(c.team); return '<li><b>' + esc(t ? t.name : 'Equipo') + '</b>' + (c.why ? '<br><small>' + esc(c.why) + '</small>' : '') + '</li>'; }).join('') + '</ol>' + (D.comment ? '<p class="note">Comentario: ' + esc(D.comment) + '</p>' : '') + '</div>' : '<p class="msg warn">No llegaste a cargar preferencias.</p>');
+    return;
+  }
+  const teams = D.teams || [];
+  if(!teams.length){ app.innerHTML = head + '<p class="msg warn">Todavía no hay equipos cargados en la consulta. Volvé a entrar más tarde.</p>'; return; }
+  const slot = (i) => {
+    const c = ch[i] || {};
+    const req = i === 0;
+    return '<div class="card slot' + (req ? '' : ' opt') + '"><div class="slot-head"><span class="num" aria-hidden="true">' + (i + 1) + '</span><div><b>' + ['Primera opción', 'Segunda opción', 'Tercera opción'][i] + '</b> <span>' + (req ? 'obligatoria' : 'opcional') + '</span></div></div>' +
+      '<label for="t' + i + '">Equipo</label><select id="t' + i + '" data-i="' + i + '"' + (req ? ' required' : '') + '><option value="">' + (req ? 'Elegí un equipo' : '— Ninguna —') + '</option>' +
+      teams.map(t => '<option value="' + esc(t.id) + '"' + (c.team === t.id ? ' selected' : '') + '>' + esc(t.name) + '</option>').join('') + '</select>' +
+      '<p class="desc" id="d' + i + '"></p>' +
+      '<label for="w' + i + '">¿Por qué te interesa? <span style="font-weight:400">(opcional)</span></label><textarea id="w' + i + '" maxlength="500" placeholder="Qué te atrae de este equipo, qué podrías aportar…">' + esc(c.why || '') + '</textarea></div>';
+  };
+  app.innerHTML = head +
+    '<p class="lead">Elegí hasta <b>3 equipos en orden de preferencia</b>. Lo que respondas lo ve solo el equipo que arma la nueva estructura, y nos ayuda a decidir teniendo en cuenta lo que te interesa. No es una asignación definitiva.</p>' +
+    '<form id="f" novalidate>' + [0, 1, 2].map(slot).join('') +
+    '<div class="card"><label for="cm" style="margin-top:0">Algo más que quieras contarnos <span style="font-weight:400">(opcional)</span></label><textarea id="cm" maxlength="1000" placeholder="Por ejemplo: temas que te gustaría aprender, con quién te gustaría trabajar…">' + esc(D.comment || '') + '</textarea></div>' +
+    '<div class="actions"><button class="primary" id="save" type="submit">' + (D.answered_at ? 'Guardar cambios' : 'Enviar mis preferencias') + '</button><span id="msg" role="status"></span></div>' +
+    (D.answered_at ? '<p class="note" style="margin-top:12px">Ya respondiste el ' + new Date(D.answered_at).toLocaleDateString('es-AR', {day:'numeric', month:'long'}) + '. Podés cambiar tu respuesta hasta que se cierre la consulta.</p>' : '<p class="note" style="margin-top:12px">Podés volver a este mismo link y cambiar tu respuesta hasta que se cierre la consulta.</p>') +
+    '</form>';
+  sync();
+  document.getElementById('f').addEventListener('change', sync);
+  document.getElementById('f').addEventListener('submit', save);
+}
+// no dejar elegir el mismo equipo dos veces y mostrar la descripción
+function sync(){
+  const sels = [0, 1, 2].map(i => document.getElementById('t' + i));
+  const vals = sels.map(s => s.value);
+  sels.forEach((s, i) => {
+    [...s.options].forEach(o => { if(o.value) o.disabled = vals.some((v, j) => j !== i && v === o.value); });
+    const t = teamById(s.value);
+    document.getElementById('d' + i).textContent = t && t.desc ? t.desc : '';
+  });
+}
+async function save(e){
+  e.preventDefault();
+  const msg = document.getElementById('msg'), btn = document.getElementById('save');
+  const choices = [0, 1, 2].map(i => ({team: document.getElementById('t' + i).value, why: document.getElementById('w' + i).value.trim()})).filter(c => c.team);
+  msg.className = 'msg'; msg.textContent = '';
+  if(!document.getElementById('t0').value){
+    msg.className = 'msg err'; msg.textContent = 'Elegí al menos tu primera opción.'; document.getElementById('t0').focus(); return;
+  }
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  const {error} = await sb.rpc('pref_save', {p_token: token, p_choices: choices, p_comment: document.getElementById('cm').value.trim()});
+  btn.disabled = false;
+  if(error){
+    btn.textContent = D.answered_at ? 'Guardar cambios' : 'Enviar mis preferencias';
+    msg.className = 'msg err';
+    msg.textContent = /cerrada|disponible|repitas|válido|Elegí/.test(error.message || '') ? error.message : 'No se pudo guardar. Revisá tu conexión y probá de nuevo.';
+    if(/cerrada/.test(error.message || '')) load();
+    return;
+  }
+  D.choices = choices; D.comment = document.getElementById('cm').value.trim(); D.answered_at = new Date().toISOString();
+  btn.textContent = 'Guardar cambios';
+  msg.className = 'msg ok'; msg.textContent = '¡Listo, quedó guardado! Gracias.';
+}
+load();
+})();
+</script>
+</body>
+</html>

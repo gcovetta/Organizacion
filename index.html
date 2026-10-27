@@ -458,6 +458,35 @@ body.locked .drawer{display:none!important}
 .team h2{overflow-wrap:break-word}
 .team.compact .cp-head{flex-wrap:wrap;row-gap:4px}
 .team.compact .cp-head > .team-tools{order:-1;flex:1 0 100%;justify-content:flex-end;margin:-4px -4px 0 0}
+
+/* ---- preferencias ---- */
+.pf-table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;min-width:900px}
+.pf-table th{text-align:left;font-size:12px;color:var(--muted);font-weight:700;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.pf-table td{padding:8px;border-bottom:1px solid var(--soft-line);vertical-align:top}
+.pf-table td small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.pf-table .muted{color:var(--muted)}
+.pf-cm{font-style:italic}
+.pf-opt{display:flex;flex-direction:column;gap:3px;align-items:flex-start;max-width:230px}
+.pf-assign{all:unset;cursor:pointer;font-size:11px;font-weight:800;color:var(--accent);padding:2px 0}
+.pf-assign:hover{text-decoration:underline}.pf-assign:focus-visible{outline:2px solid var(--accent)}
+.pf-here{font-size:11px;font-weight:800;color:var(--ok)}
+.pf-st{display:inline-block;font-size:11px;font-weight:800;padding:3px 8px;border-radius:999px;background:var(--surface-2);color:var(--muted);white-space:nowrap}
+.pf-st.ok{background:var(--co-ext-bg);color:var(--co-ext-ink)}
+.pf-st.wait{background:var(--warn-bg);color:var(--warn)}
+.pf-state{font-size:12px;font-weight:800;padding:4px 10px;border-radius:999px;background:var(--warn-bg);color:var(--warn)}
+.pf-state.on{background:var(--co-ext-bg);color:var(--co-ext-ink)}
+.pf-links{white-space:nowrap}
+.btn.sm{min-height:30px;padding:0 10px;font-size:12px;border-radius:8px;margin-right:4px}
+.pf-n{text-align:center;font-weight:800;font-variant-numeric:tabular-nums}
+.pf-n.hot{color:var(--warn)}
+.pf-who{display:inline-block;margin:0 8px 4px 0;font-size:12px}
+.pf-who i{font-style:normal;color:var(--muted);font-size:11px}
+.pf-add{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:12px;font-size:12px;color:var(--muted);font-weight:700}
+.pf-add select{margin-left:6px;height:34px;border:1px solid var(--line);border-radius:8px;padding:0 8px;background:var(--surface);color:var(--ink);font:inherit;font-size:13px;max-width:320px}
+.pf-teams{display:flex;flex-wrap:wrap;gap:8px}
+.pf-teams label{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:10px;background:var(--surface-2);font-size:13px;cursor:pointer}
+.pf-badge{display:inline-block;margin-top:2px;font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;background:#123A4D;color:var(--accent)}
+:root:not([data-theme=dark]) .pf-badge{background:#ECEBFA}
 </style>
 </head>
 <body>
@@ -478,6 +507,7 @@ body.locked .drawer{display:none!important}
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 4L2.5 7.5 6 11"/><path d="M3 7.5h8a4.5 4.5 0 010 9H8"/></svg>
     </button>
     <button class="btn icon" data-act="theme" id="themeBtn" aria-label="Cambiar a tema claro" title="Tema claro / oscuro"></button>
+    <button class="btn" data-act="pf-open">Preferencias</button>
     <button class="btn" data-act="dash-open">Tablero</button>
     <button class="btn" data-act="list-open">Lista de personas</button>
     <button class="btn" data-act="import-menu">Importar</button>
@@ -546,6 +576,10 @@ body.locked .drawer{display:none!important}
 <section class="list-view" id="dashView" hidden aria-label="Tablero de equilibrio de roles" tabindex="-1">
   <div class="lv-head" id="dbBar"></div>
   <div class="db-body" id="dbBody"></div>
+</section>
+<section class="list-view" id="prefView" hidden aria-label="Preferencias de los líderes" tabindex="-1">
+  <div class="lv-head" id="pfBar"></div>
+  <div class="db-body" id="pfBody"></div>
 </section>
 <dialog id="dlg"></dialog>
 <input type="file" id="fileIn" accept=".json,application/json" hidden>
@@ -701,7 +735,7 @@ function pump(){
   }
 }
 function cfgOf(x){ return {tribe:x.tribe, settings:x.settings, roles:x.roles}; }
-function teamDoc(t, i){ const d = {name:t.name, parent:t.parent == null ? null : t.parent, order:i}; if(t.lead) d.lead = true; if(typeof t.multi === 'boolean') d.multi = t.multi; return d; }
+function teamDoc(t, i){ const d = {name:t.name, parent:t.parent == null ? null : t.parent, order:i}; if(t.lead) d.lead = true; if(typeof t.multi === 'boolean') d.multi = t.multi; if(t.desc) d.desc = t.desc; return d; }
 function personDoc(p){ const o = Object.assign({}, p); delete o.id; return o; }
 function sync(prev, next){
   if(JSON.stringify(cfgOf(prev)) !== JSON.stringify(cfgOf(next))){ const c = cfgOf(next); enqueue(() => DB.doc('meta/config').set(JSON.parse(JSON.stringify(c)))); }
@@ -806,6 +840,7 @@ async function startSupabase(){
   document.getElementById('notesBtn').hidden = false;
   listenRealtime();
   loadNotes();
+  loadPrefs();
   return SBDB;
 }
 document.getElementById('loginForm').addEventListener('submit', async e => {
@@ -961,7 +996,7 @@ function render(){
   $('#tribeName').textContent = S.tribe.name || 'Mi tribu';
   document.title = 'Organigrama · ' + (S.tribe.name || '');
   $('#undoBtn').disabled = !hist.length;
-  renderStats(); renderLegend(); renderTree(); renderPool(); renderList(); renderDash(); renderOrgFilters(); renderSearchNav();
+  renderStats(); renderLegend(); renderTree(); renderPool(); renderList(); renderDash(); renderOrgFilters(); renderSearchNav(); renderPrefs();
   const tb = $('#themeBtn'); if(tb){ const dk = document.documentElement.dataset.theme === 'dark';
     tb.innerHTML = dk ? '<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="9" cy="9" r="3.5"/><path d="M9 1.5v2M9 14.5v2M1.5 9h2M14.5 9h2M3.7 3.7l1.4 1.4M12.9 12.9l1.4 1.4M3.7 14.3l1.4-1.4M12.9 5.1l1.4-1.4"/></svg>' : '<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M14.5 11A6 6 0 017 3.5a6 6 0 107.5 7.5z"/></svg>';
     tb.setAttribute('aria-label', dk ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'); }
@@ -1245,6 +1280,7 @@ function teamCard(t){
           (floating ? '<div class="float-tag">Fuera de la tribu</div>' : '') + '<div class="team-head">' + ringSvg(a.n, max, a.over) +
             '<div style="min-width:0"><h2>' + esc(t.name) + '</h2><div class="sub">' + a.n + ' de ' + max + ' · ' + a.present.length + (a.present.length === 1 ? ' rol' : ' roles') + '</div>' +
             (a.ext ? '<div class="sub ext">' + a.ext + ' de TMA</div>' : '') +
+            (PREF.loaded && !PREF.missing && prefInterest(t.id) ? '<div class="pf-badge" title="Líderes que lo eligieron en la consulta">' + prefInterest(t.id) + (prefInterest(t.id) === 1 ? ' interesado' : ' interesados') + '</div>' : '') +
             (a.third ? '<div class="sub third">' + a.third + (a.third === 1 ? ' tercero' : ' terceros') + '</div>' : '') +
             '</div>' +
             '<div class="team-tools">' +
@@ -1601,6 +1637,163 @@ $('#dashView').addEventListener('input', e => {
 });
 $('#dashView').addEventListener('keydown', e => { if(e.key === 'Escape' && !dlg.open){ DB_V.open = false; renderDash(); } });
 
+/* ---------- consulta de preferencias de los líderes ---------- */
+const PREF = {view:false, loaded:false, missing:false, campaign:null, links:new Map(), busy:false};
+async function loadPrefs(){
+  if(!sb) return;
+  const [c, l] = await Promise.all([
+    sb.from('pref_campaign').select('*').eq('id', 1).maybeSingle(),
+    sb.from('pref_links').select('*')
+  ]);
+  const err = c.error || l.error;
+  if(err){ PREF.missing = /does not exist|relation|schema cache|not find/i.test(err.message || '') || err.code === '42P01' || err.code === 'PGRST205'; PREF.loaded = true; render(); return; }
+  PREF.missing = false; PREF.loaded = true;
+  PREF.campaign = c.data || {id:1, open:true, teams:[]};
+  PREF.links = new Map((l.data || []).map(r => [r.person_id, r]));
+  if(!PREF.ch){
+    PREF.ch = sb.channel('preferencias').on('postgres_changes', {event:'*', schema:'public', table:'pref_links'}, p => {
+      if(p.eventType === 'DELETE'){ for(const [k, v] of PREF.links) if(v.token === p.old.token) PREF.links.delete(k); }
+      else PREF.links.set(p.new.person_id, p.new);
+      render();
+    }).subscribe();
+  }
+  render();
+}
+function prefLeaders(){
+  const leadRoles = S.roles.filter(r => r.lead).map(r => r.id);
+  const extra = S.settings.prefExtra || [], excl = S.settings.prefExclude || [];
+  return S.people.filter(p => (leadRoles.includes(p.role) || extra.includes(p.id)) && !excl.includes(p.id) && !isOutside(p.team))
+    .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+}
+function prefTeams(){
+  const off = S.settings.prefTeamsOff || [];
+  return ourTeams().filter(t => !off.includes(t.id)).map(t => ({id:t.id, name:t.name, desc:t.desc || ''}));
+}
+function prefUrl(token){ return location.origin + location.pathname.replace(/[^/]*$/, '') + 'preferencias.html?t=' + token; }
+// la lista de equipos que ven los líderes se mantiene igual a la del organigrama
+let prefSyncT;
+function prefSyncCampaign(){
+  if(!PREF.loaded || PREF.missing || !PREF.campaign) return;
+  const teams = prefTeams();
+  if(JSON.stringify(teams) === JSON.stringify(PREF.campaign.teams || [])) return;
+  clearTimeout(prefSyncT);
+  prefSyncT = setTimeout(async () => {
+    const {error} = await sb.from('pref_campaign').upsert({id:1, open:PREF.campaign.open, teams, updated_at:new Date().toISOString()});
+    if(!error) PREF.campaign.teams = teams;
+  }, 600);
+}
+function prefInterest(teamId){
+  let n = 0; PREF.links.forEach(l => { if((l.choices || []).some(c => c.team === teamId)) n++; }); return n;
+}
+async function prefMakeLinks(people){
+  const rows = people.filter(p => !PREF.links.has(p.id)).map(p => ({person_id:p.id, name:p.name}));
+  if(!rows.length) return 0;
+  const {data, error} = await sb.from('pref_links').insert(rows).select();
+  if(error){ toast('No se pudieron generar los links. Probá de nuevo.'); return 0; }
+  data.forEach(r => PREF.links.set(r.person_id, r));
+  return data.length;
+}
+async function prefCopy(text, ok){
+  try { await navigator.clipboard.writeText(text); toast(ok); }
+  catch(e){ window.prompt('Copiá el texto:', text); }
+}
+function renderPrefs(){
+  const v = $('#prefView');
+  if(!PREF.view){ v.hidden = true; return; }
+  v.hidden = false;
+  const leaders = prefLeaders(), teams = prefTeams();
+  const answered = leaders.filter(p => (PREF.links.get(p.id) || {}).answered_at).length;
+  const open = PREF.campaign ? PREF.campaign.open : true;
+  $('#pfBar').innerHTML = '<h2>Preferencias de los líderes</h2>' +
+    (PREF.loaded && !PREF.missing ? '<span class="pf-state ' + (open ? 'on' : '') + '">' + (open ? 'Consulta abierta' : 'Consulta cerrada') + '</span>' +
+      '<span class="count">' + answered + ' de ' + leaders.length + ' respondieron</span>' +
+      '<button class="btn" data-act="pf-toggle">' + (open ? 'Cerrar consulta' : 'Reabrir consulta') + '</button>' +
+      '<button class="btn" data-act="pf-genall">Generar links faltantes</button>' +
+      '<button class="btn" data-act="pf-copyall">Copiar todos los links</button>' : '') +
+    '<button class="btn lv-close" data-act="pf-close">Cerrar</button>';
+  if(!PREF.loaded){ $('#pfBody').innerHTML = '<div class="lv-empty">Cargando…</div>'; return; }
+  if(PREF.missing){ $('#pfBody').innerHTML = '<section class="db-sec"><h3>Falta un paso en Supabase</h3><p class="note">Para usar la consulta hay que correr una vez el script <b>supabase-preferencias.sql</b> en Supabase › SQL Editor. Después tocá "Volver a intentar".</p><button class="btn" data-act="pf-reload">Volver a intentar</button></section>'; return; }
+  prefSyncCampaign();
+  const tn = id => { const t = S.teams.find(x => x.id === id); return t ? t.name : 'Equipo borrado'; };
+  const others = S.people.filter(p => !leaders.includes(p) && !isOutside(p.team)).sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  // por líder
+  let h = '<section class="db-sec"><h3>Por líder</h3><p class="note">Cuentan como líderes las personas con un rol marcado como líder en Configuración (' + esc(S.roles.filter(r => r.lead).map(r => r.label).join(', ') || 'ninguno') + '), más las que agregues abajo. Cada uno recibe su link personal: solo ve la lista de equipos y su propia respuesta.</p>' +
+    '<div class="db-hm-wrap"><table class="pf-table"><thead><tr><th>Líder</th><th>1.ª opción</th><th>2.ª opción</th><th>3.ª opción</th><th>Estado</th><th>Link</th><th></th></tr></thead><tbody>' +
+    (leaders.length ? leaders.map(p => {
+      const l = PREF.links.get(p.id), ch = (l && l.choices) || [];
+      const opt = i => { const c = ch[i]; if(!c) return '<td class="muted">—</td>';
+        const here = p.team === c.team;
+        return '<td><div class="pf-opt"><b>' + esc(tn(c.team)) + '</b>' + (c.why ? '<small>' + esc(c.why) + '</small>' : '') +
+          (here ? '<span class="pf-here">Ya está acá</span>' : '<button class="pf-assign" data-act="pf-assign" data-pid="' + p.id + '" data-tid="' + esc(c.team) + '">Asignar acá</button>') + '</div></td>'; };
+      const st = !l ? '<span class="pf-st">Sin link</span>' : l.answered_at ? '<span class="pf-st ok" title="' + esc(new Date(l.answered_at).toLocaleString('es-AR')) + '">Respondió</span>' : '<span class="pf-st wait">Pendiente</span>';
+      const lk = l ? '<button class="btn sm" data-act="pf-copy" data-pid="' + p.id + '">Copiar link</button><button class="btn sm ghost" data-act="pf-renew" data-pid="' + p.id + '" title="Crea un link nuevo y anula el anterior">Nuevo</button>' : '<button class="btn sm" data-act="pf-gen" data-pid="' + p.id + '">Generar link</button>';
+      return '<tr><td><b>' + esc(p.name) + '</b><small class="muted">' + esc(teamName(p.team)) + ' · ' + esc(role(p.role).label) + '</small>' + (l && l.comment ? '<small class="pf-cm">“' + esc(l.comment) + '”</small>' : '') + '</td>' +
+        opt(0) + opt(1) + opt(2) + '<td>' + st + '</td><td class="pf-links">' + lk + '</td>' +
+        '<td><button class="db-x" data-act="pf-remove" data-pid="' + p.id + '" title="Sacar de la consulta" aria-label="Sacar a ' + esc(p.name) + ' de la consulta">✕</button></td></tr>';
+    }).join('') : '<tr><td colspan="7" class="lv-empty">No hay líderes. Marcá un rol como líder en Configuración o agregá personas abajo.</td></tr>') +
+    '</tbody></table></div>' +
+    '<div class="pf-add"><label>Sumar a alguien a la consulta <select data-pf="add"><option value="">Elegí una persona…</option>' + others.map(p => '<option value="' + p.id + '">' + esc(p.name) + ' · ' + esc(teamName(p.team)) + '</option>').join('') + '</select></label>' +
+    ((S.settings.prefExclude || []).length ? '<span class="note">Sacados: ' + (S.settings.prefExclude || []).map(id => { const p = S.people.find(x => x.id === id); return p ? '<button class="lv-chip" data-act="pf-restore" data-pid="' + id + '" title="Volver a sumar">' + esc(p.name) + ' ↺</button>' : ''; }).join('') + '</span>' : '') + '</div></section>';
+  // por equipo
+  const demand = teams.map(t => {
+    const who = [];
+    leaders.forEach(p => { const l = PREF.links.get(p.id); ((l && l.choices) || []).forEach((c, i) => { if(c.team === t.id) who.push([p, i]); }); });
+    return {t, who, c:[0,1,2].map(i => who.filter(w => w[1] === i).length)};
+  }).sort((a, b) => b.c[0] - a.c[0] || b.who.length - a.who.length || a.t.name.localeCompare(b.t.name, 'es'));
+  h += '<section class="db-sec"><h3>Por equipo</h3><p class="note">Cuántos líderes eligieron cada equipo y en qué lugar. Arriba, los más pedidos como primera opción.</p>' +
+    '<div class="db-hm-wrap"><table class="pf-table"><thead><tr><th>Equipo</th><th>1.ª</th><th>2.ª</th><th>3.ª</th><th>Quiénes</th></tr></thead><tbody>' +
+    demand.map(d => '<tr><td><b>' + esc(d.t.name) + '</b>' + (d.who.length ? '' : '<span class="pf-st wait" style="margin-left:6px">Nadie lo eligió</span>') + '</td>' +
+      d.c.map((n, i) => '<td class="pf-n' + (n ? '' : ' muted') + (i === 0 && n > 1 ? ' hot' : '') + '">' + n + '</td>').join('') +
+      '<td>' + d.who.sort((a, b) => a[1] - b[1]).map(([p, i]) => '<span class="pf-who">' + esc(p.name) + ' <i>' + (i + 1) + '.ª</i></span>').join('') + '</td></tr>').join('') +
+    '</tbody></table></div></section>';
+  // equipos ofrecidos
+  const off = S.settings.prefTeamsOff || [];
+  h += '<section class="db-sec"><h3>Equipos que se ofrecen</h3><p class="note">Los líderes eligen entre los equipos marcados. La descripción que ven se carga en el lápiz de cada equipo.</p><div class="pf-teams">' +
+    ourTeams().map(t => '<label><input type="checkbox" data-pf="team" value="' + t.id + '"' + (off.includes(t.id) ? '' : ' checked') + '> ' + esc(t.name) + (t.desc ? '' : ' <small class="muted">(sin descripción)</small>') + '</label>').join('') + '</div></section>';
+  $('#pfBody').innerHTML = h;
+}
+$('#prefView').addEventListener('change', e => {
+  const k = e.target.dataset && e.target.dataset.pf; if(!k) return;
+  if(k === 'add' && e.target.value){ const id = e.target.value, ex = (S.settings.prefExtra || []).slice(), excl = (S.settings.prefExclude || []).filter(x => x !== id);
+    commit(() => { S.settings.prefExtra = ex.includes(id) ? ex : ex.concat(id); S.settings.prefExclude = excl; }); }
+  if(k === 'team'){ const id = e.target.value, cur = (S.settings.prefTeamsOff || []).slice();
+    commit(() => { S.settings.prefTeamsOff = e.target.checked ? cur.filter(x => x !== id) : cur.concat(id); }); }
+});
+$('#prefView').addEventListener('keydown', e => { if(e.key === 'Escape' && !dlg.open){ PREF.view = false; renderPrefs(); } });
+async function prefAction(act, el){
+  const pid = el.dataset.pid, p = S.people.find(x => x.id === pid);
+  if(act === 'pf-close'){ PREF.view = false; renderPrefs(); return; }
+  if(act === 'pf-reload'){ PREF.loaded = false; renderPrefs(); loadPrefs(); return; }
+  if(PREF.busy) return; PREF.busy = true;
+  try {
+    if(act === 'pf-toggle'){
+      const open = !(PREF.campaign && PREF.campaign.open);
+      const {error} = await sb.from('pref_campaign').upsert({id:1, open, teams:prefTeams(), updated_at:new Date().toISOString()});
+      if(error) toast('No se pudo cambiar el estado de la consulta.'); else { PREF.campaign = Object.assign(PREF.campaign || {}, {open, teams:prefTeams()}); toast(open ? 'Consulta abierta: los líderes pueden responder' : 'Consulta cerrada: ya no se pueden cambiar respuestas'); }
+    } else if(act === 'pf-gen' && p){ await prefMakeLinks([p]); const l = PREF.links.get(pid); if(l) await prefCopy(prefUrl(l.token), 'Link de ' + p.name + ' copiado'); }
+    else if(act === 'pf-genall'){ const n = await prefMakeLinks(prefLeaders()); toast(n ? n + (n === 1 ? ' link generado' : ' links generados') : 'Todos ya tenían link'); }
+    else if(act === 'pf-copy' && p){ const l = PREF.links.get(pid); if(l) await prefCopy(prefUrl(l.token), 'Link de ' + p.name + ' copiado'); }
+    else if(act === 'pf-copyall'){
+      await prefMakeLinks(prefLeaders());
+      const txt = prefLeaders().map(x => { const l = PREF.links.get(x.id); return l ? x.name + ': ' + prefUrl(l.token) : ''; }).filter(Boolean).join('\n');
+      await prefCopy(txt, 'Links copiados: pegalos donde los vayas a mandar');
+    } else if(act === 'pf-renew' && p){
+      if(!confirm('¿Crear un link nuevo para ' + p.name + '? El anterior deja de funcionar y se borra su respuesta.')) return;
+      const old = PREF.links.get(pid);
+      if(old){ const {error} = await sb.from('pref_links').delete().eq('token', old.token); if(error){ toast('No se pudo anular el link anterior.'); return; } PREF.links.delete(pid); }
+      await prefMakeLinks([p]); const l = PREF.links.get(pid); if(l) await prefCopy(prefUrl(l.token), 'Link nuevo de ' + p.name + ' copiado');
+    } else if(act === 'pf-assign' && p){
+      const tid = el.dataset.tid; if(!S.teams.some(t => t.id === tid)){ toast('Ese equipo ya no existe'); return; }
+      commit(() => { p.team = tid; }); toast(p.name + ' → ' + teamName(tid));
+    } else if(act === 'pf-remove' && p){
+      const ex = (S.settings.prefExtra || []).filter(x => x !== pid), excl = (S.settings.prefExclude || []);
+      commit(() => { S.settings.prefExtra = ex; if(!excl.includes(pid)) S.settings.prefExclude = excl.concat(pid); });
+    } else if(act === 'pf-restore'){
+      commit(() => { S.settings.prefExclude = (S.settings.prefExclude || []).filter(x => x !== pid); });
+    }
+  } finally { PREF.busy = false; renderPrefs(); }
+}
+
 /* ---------- dialogs ---------- */
 const dlg = $('#dlg');
 dlg.addEventListener('close', () => { if(pendingRender){ pendingRender = false; render(); } });
@@ -1676,6 +1869,7 @@ function teamDialog(t, asLead){
     '<label class="field">' + (lead ? 'Nombre (ej: B2B)' : 'Nombre del equipo') + '<input name="name" required value="' + esc(t.name) + '"></label>' +
     (lead ? '<p class="note">Queda al mismo nivel que ' + esc(S.tribe.lead || 'el líder de tribu') + ', sin líder. Las personas y equipos que pongas ahí no cuentan en los totales, promedios ni alertas de esta estructura. Para sumarle equipos, elegila en "Reporta a" de cada equipo.</p>'
       : '<label class="field">Reporta a<select name="parent">' + parentOpts + '</select></label>' +
+        '<label class="field">Descripción <span style="font-weight:400;color:var(--muted)">(la ven los líderes en la consulta de preferencias)</span><textarea name="desc" rows="2" maxlength="300" placeholder="Qué hace el equipo, en una o dos líneas">' + esc(t.desc || '') + '</textarea></label>' +
         '<label class="field" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="multi"' + (t.name && isMulti(t) ? ' checked' : '') + ' style="width:auto;height:auto"> Equipo multi-rol (se espera una mezcla de roles; si no, es específico)</label>') +
     (isNew ? '' : lead ? '<p class="note">Si la eliminás, su gente pasa a "Sin asignar" y sus equipos quedan sin ubicar.</p>' : '<p class="note">Si eliminás el equipo, sus integrantes pasan a "Sin asignar" y los equipos que le reportan pasan a reportar a su superior.</p>') +
     (isNew ? '' : '<label class="field">Posición<select name="pos">' + S.teams.map((x, i) => '<option value="' + i + '"' + (x.id === t.id ? ' selected' : '') + '>' + (i + 1) + '</option>').join('') + '</select></label>'),
@@ -1693,9 +1887,10 @@ function teamDialog(t, asLead){
       const name = f.elements.name.value.trim(); if(!name) return false;
       const parent = lead ? null : (f.elements.parent.value || null);
       commit(() => {
-        if(isNew) S.teams.push(lead ? {id:uid('t'), name, parent:null, lead:true} : {id:uid('t'), name, parent, multi: !!f.elements.multi.checked});
+        const desc = !lead && f.elements.desc ? f.elements.desc.value.trim() : '';
+        if(isNew) S.teams.push(lead ? {id:uid('t'), name, parent:null, lead:true} : Object.assign({id:uid('t'), name, parent, multi: !!f.elements.multi.checked}, desc ? {desc} : {}));
         else {
-          const cur = S.teams.find(x => x.id === t.id); cur.name = name; if(!lead){ setParent(cur, parent); if(f.elements.multi.checked !== isMulti(cur)) cur.multi = f.elements.multi.checked; }
+          const cur = S.teams.find(x => x.id === t.id); cur.name = name; if(!lead){ setParent(cur, parent); if(f.elements.multi.checked !== isMulti(cur)) cur.multi = f.elements.multi.checked; if(desc) cur.desc = desc; else delete cur.desc; }
           const pos = +f.elements.pos.value, idx = S.teams.indexOf(cur);
           if(pos !== idx){ S.teams.splice(idx, 1); S.teams.splice(pos, 0, cur); }
         }
@@ -1836,6 +2031,8 @@ document.addEventListener('click', e => {
   else if(act === 'of-clear'){ OF_FIELDS.forEach(([k]) => OF[k] = ''); renderTree(); renderPool(); renderOrgFilters(); renderSearchNav(); }
   else if(act === 'sn-next' || act === 'sn-prev'){ const l = searchHits(); if(l.length){ SN.i = (SN.i + (act === 'sn-next' ? 1 : -1) + l.length) % l.length; goToPerson(l[SN.i]); } }
   else if(act === 'theme'){ const d = document.documentElement, nt = d.dataset.theme === 'dark' ? 'light' : 'dark'; d.dataset.theme = nt; try { localStorage.setItem('organigrama-theme', nt); } catch(e){} render(); }
+  else if(act === 'pf-open'){ PREF.view = true; renderPrefs(); $('#prefView').focus(); if(!PREF.loaded) loadPrefs(); }
+  else if(act && act.startsWith('pf-')) prefAction(act, el);
   else if(act === 'dash-clear'){ DB_V.f = {}; renderDash(); }
   else if(act === 'dash-close'){ DB_V.open = false; renderDash(); }
   else if(act === 'dash-cell'){ LV.fTeam = el.dataset.tid; LV.fRole = el.dataset.rid; LV.filter = 'all'; LV.q = ''; LV.open = true; LV.back = true; DB_V.open = false; renderDash(); renderList(); }
