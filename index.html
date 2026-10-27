@@ -369,6 +369,14 @@ body.locked .drawer{display:none!important}
 @keyframes flashring{0%,100%{box-shadow:0 0 0 0 transparent}30%{box-shadow:0 0 0 6px #4B3FC955}}
 .flash{animation:flashring 1.2s ease-out 2}
 @media (prefers-reduced-motion:reduce){.flash{animation:none;outline:3px solid var(--accent)}}
+
+.team.compact{width:auto;min-width:200px;max-width:280px;padding:10px 12px;gap:6px;border-width:1px !important}
+.team.compact .cp-head{display:flex;align-items:center;gap:6px}
+.team.compact h2{margin:0;font-size:14px;flex:1 1 auto;min-width:0}
+.team.compact .team-tools{display:flex;gap:2px}
+.cp-count{font-size:13px;color:var(--muted)}
+.cp-count b{font-size:20px;font-weight:800;color:var(--ink);margin-right:2px}
+.cp-count span{font-size:12px}
 </style>
 </head>
 <body>
@@ -1119,6 +1127,13 @@ function moveTeam(tid, dir){
   const sib = siblingsOf(t), i = sib.indexOf(t), o = sib[i + dir]; if(!o) return;
   commit(() => { const a = S.teams.indexOf(t), b = S.teams.indexOf(o); S.teams[a] = o; S.teams[b] = t; });
 }
+// tarjetas compactas (solo nombre y cantidad): preferencia de vista de cada persona
+let compactUI = {};
+try { compactUI = JSON.parse(localStorage.getItem(KEY + '-compact') || '{}'); } catch(e){}
+function isCompact(t){
+  if(typeof compactUI[t.id] === 'boolean') return compactUI[t.id];
+  return /dise[ñn]o.*ingenier/i.test(t.name) || /soporte.*operaci/i.test(t.name);
+}
 function borderFor(n){ return n <= 2 ? 1 : n <= 5 ? 2 : n <= 8 ? 3 : n <= 12 ? 5 : n <= 18 ? 7 : 9; }
 function teamCard(t){
   const a = analyze(t.id);
@@ -1128,6 +1143,15 @@ function teamCard(t){
   const floating = t.parent === FLOAT;
   const col = !!(S.collapsed || {})[t.id];
   const subTotal = kids.length ? descendants(t.id).reduce((s, id) => s + membersOf(id).length, a.n) : 0;
+  if(isCompact(t)){
+    const tot = kids.length ? subTotal : a.n;
+    return '<article class="team compact' + (floating ? ' float' : '') + ((query || ofActive()) && !a.m.some(isHit) ? ' nohit' : '') + '" data-drop="' + t.id + '" aria-label="Equipo ' + esc(t.name) + ' (vista compacta)">' +
+      '<div class="cp-head"><h2>' + esc(t.name) + '</h2><div class="team-tools">' + noteBtn('team', t.id, t.name) +
+      '<button class="mini" data-act="edit-team" data-tid="' + t.id + '" aria-label="Editar equipo ' + esc(t.name) + '">' + ICON_EDIT + '</button>' +
+      '<button class="mini" data-act="compact" data-tid="' + t.id + '" aria-label="Mostrar completo" title="Mostrar completo">' + ICON_EXPAND + '</button></div></div>' +
+      '<div class="cp-count"><b>' + tot + '</b> ' + (tot === 1 ? 'persona' : 'personas') + (kids.length ? ' <span>· ' + a.n + ' directas · ' + kids.length + (kids.length === 1 ? ' equipo' : ' equipos') + ' a cargo</span>' : '') + '</div>' +
+      moveRow(t) + '</article>';
+  }
   let h = '' +
         '<article class="team' + ((query || ofActive()) && !a.m.some(isHit) ? ' nohit' : '') + (a.over ? ' over' : '') + (exp && !col ? ' wide' : '') + (floating ? ' float' : '') + (col ? ' collapsed' : '') + '" style="border-width:' + borderFor(a.n) + 'px" data-drop="' + t.id + '" aria-label="Equipo ' + esc(t.name) + '">' +
           (floating ? '<div class="float-tag">Fuera de la tribu</div>' : '') + '<div class="team-head">' + ringSvg(a.n, max, a.over) +
@@ -1139,6 +1163,7 @@ function teamCard(t){
               '<button class="mini" data-act="collapse" data-tid="' + t.id + '" aria-expanded="' + !col + '" aria-label="' + (col ? 'Desplegar' : 'Colapsar') + ' equipo ' + esc(t.name) + '" title="' + (col ? 'Desplegar' : 'Colapsar') + '">' + (col ? ICON_DOWN : ICON_UP) + '</button>' +
               noteBtn('team', t.id, t.name) +
               '<button class="mini" data-act="edit-team" data-tid="' + t.id + '" aria-label="Editar equipo ' + esc(t.name) + '">' + ICON_EDIT + '</button>' +
+              '<button class="mini" data-act="compact" data-tid="' + t.id + '" aria-label="Vista compacta" title="Vista compacta (solo nombre y cantidad)"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 8h10"/></svg></button>' +
               '<button class="mini" data-act="toggle" data-tid="' + t.id + '" aria-label="' + (exp ? 'Achicar' : 'Ampliar') + ' equipo">' + (exp ? ICON_SHRINK : ICON_EXPAND) + '</button>' +
             '</div></div>';
       if(kids.length) h += '<div class="reports">' + kids.length + (kids.length === 1 ? ' equipo' : ' equipos') + ' a cargo · <b>' + subTotal + '</b> personas en total' + (col ? ' · ocultos' : '') + '</div>';
@@ -1706,6 +1731,7 @@ document.addEventListener('click', e => {
   else if(act === 'skill-view'){ skillView = !skillView; try { localStorage.setItem('organigrama-skillview', skillView ? '1' : '0'); } catch(e){} render(); }
   else if(act === 'expand-all'){ S.teams.forEach(t => S.expanded[t.id] = true); save(); render(); }
   else if(act === 'collapse-all'){ S.expanded = {}; save(); render(); }
+  else if(act === 'compact'){ const t = S.teams.find(x => x.id === tid); if(t){ compactUI[tid] = !isCompact(t); try { localStorage.setItem(KEY + '-compact', JSON.stringify(compactUI)); } catch(e){} render(); } }
   else if(act === 'collapse'){ S.collapsed = S.collapsed || {}; if(S.collapsed[tid]) delete S.collapsed[tid]; else S.collapsed[tid] = true; save(); render(); }
   else if(act === 'fold-all'){ S.collapsed = {}; S.teams.forEach(t => S.collapsed[t.id] = true); save(); render(); }
   else if(act === 'unfold-all'){ S.collapsed = {}; save(); render(); }
