@@ -63,6 +63,7 @@ h1{margin:2px 0 0;font-size:30px;font-weight:800;letter-spacing:-.02em}
 .float-panel .team{width:320px;max-width:100%}
 .float-panel .team.wide{width:600px}
 .float-add{align-self:center}
+.float-tree{max-width:100%;overflow-x:auto}
 .float-panel.empty{padding:12px 16px}
 .float-panel.empty .hint{display:none}
 .stack{position:relative;display:flex;flex-direction:column;gap:14px;padding-left:22px}
@@ -236,6 +237,27 @@ body.locked .drawer{display:none!important}
   .actions,.toolbar,.team-tools,.toggle,.add-team{display:none!important}
   body{background:#fff}
 }
+
+/* ---- skill ---- */
+.face .sk{position:absolute;right:-5px;bottom:-5px;min-width:16px;height:16px;padding:0 3px;border-radius:8px;font-size:10px;line-height:16px;font-weight:800;color:#fff;border:2px solid var(--surface);box-sizing:content-box}
+.chip .sk-chip{flex:0 0 auto;font-size:11px;font-weight:800;padding:2px 6px;border-radius:6px;color:#fff}
+.skill-line{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12px;color:var(--muted);border-top:1px solid var(--soft-line);padding-top:10px}
+.skill-line .avg{font-size:15px;font-weight:800;color:var(--ink)}
+.skill-line .avg small{font-size:11px;font-weight:700;color:var(--muted)}
+.hist{display:inline-flex;align-items:flex-end;gap:2px;height:22px}
+.hist i{display:block;width:8px;border-radius:2px 2px 0 0;min-height:2px;opacity:.9}
+.hist i.zero{background:#E4E4EC !important}
+.sk-flag{font-size:11px;font-weight:800;padding:3px 8px;border-radius:999px}
+.sk-flag.hi{background:#E3F4EA;color:#1E7A4C}
+.sk-flag.lo{background:var(--warn-bg);color:var(--warn)}
+.skill-line .sub-sk{flex-basis:100%;font-size:12px}
+.sk-pick{display:flex;gap:6px;flex-wrap:wrap}
+.sk-pick label{display:inline-flex}
+.sk-pick input{position:absolute;opacity:0;pointer-events:none}
+.sk-pick span{min-width:40px;height:36px;padding:0 10px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;border:2px solid #E4E4EC;font-weight:800;cursor:pointer;background:var(--surface)}
+.sk-pick input:checked + span{color:#fff;border-color:transparent}
+.sk-pick input:focus-visible + span{outline:2px solid var(--accent);outline-offset:2px}
+.btn.on{background:var(--ink);color:#fff}
 </style>
 </head>
 <body>
@@ -283,6 +305,7 @@ body.locked .drawer{display:none!important}
     <span class="sr">Buscar</span>
     <input id="search" type="search" placeholder="Buscar persona o rol">
   </label>
+  <button class="btn ghost" data-act="skill-view" id="skillViewBtn" aria-pressed="false">Color por skill</button>
   <button class="btn ghost" data-act="expand-all">Ampliar todos</button>
   <button class="btn ghost" data-act="collapse-all">Achicar todos</button>
   <button class="btn ghost" data-act="fold-all">Colapsar todos</button>
@@ -636,14 +659,13 @@ function initials(name){
 }
 function membersOf(teamId){ return S.people.filter(p => p.team === teamId); }
 function setParent(t, parent){
-  if(parent === FLOAT) S.teams.forEach(x => { if(x.parent === t.id) x.parent = (t.parent === FLOAT ? null : t.parent) || null; });
   t.parent = parent;
 }
 function childrenOf(id){ return S.teams.filter(t => (t.parent || null) === id); }
 function descendants(id){ const out = []; childrenOf(id).forEach(c => { out.push(c.id); out.push(...descendants(c.id)); }); return out; }
 function isStack(id){ return false; } // sub-equipos siempre uno al lado del otro
 function leaves(id){ const ch = childrenOf(id); return (!ch.length || isStack(id) || (S.collapsed || {})[id]) ? 1 : ch.reduce((a, c) => a + leaves(c.id), 0); }
-function depthOf(t){ let d = 0, p = t.parent; while(p){ d++; p = (S.teams.find(x => x.id === p) || {}).parent; } return d; }
+function depthOf(t){ let d = 0, p = t.parent; while(p && p !== FLOAT){ d++; p = (S.teams.find(x => x.id === p) || {}).parent; } return d; }
 function matches(p){
   if(!query) return true;
   const q = query.toLowerCase(), r = role(p.role);
@@ -654,6 +676,43 @@ function toast(msg){
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
   clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 1800);
 }
+
+const SKC = ['#9A9AAE', '#C0392B', '#D9640F', '#A07800', '#4C9A2A', '#1E7A4C'];
+function skillOf(p){ const v = +p.skill; return v >= 1 && v <= 5 ? Math.round(v) : 0; }
+function skillStats(list){
+  const ev = list.filter(skillOf), dist = [0,0,0,0,0,0];
+  ev.forEach(p => dist[skillOf(p)]++);
+  return {n:ev.length, miss:list.length - ev.length, avg: ev.length ? ev.reduce((a, p) => a + skillOf(p), 0) / ev.length : null, dist};
+}
+function globalSkill(){ return skillStats(S.people.filter(p => p.team !== UN)); }
+function histSvg(dist){
+  const mx = Math.max(1, ...dist.slice(1));
+  return '<span class="hist" aria-hidden="true">' + [1,2,3,4,5].map(k =>
+    '<i class="' + (dist[k] ? '' : 'zero') + '" title="Skill ' + k + ': ' + dist[k] + '" style="height:' + Math.max(2, Math.round(dist[k] / mx * 22)) + 'px;background:' + SKC[k] + '"></i>').join('') + '</span>';
+}
+function skillLine(t, a, kids){
+  const st = skillStats(a.m);
+  if(!a.n) return '';
+  const g = globalSkill();
+  let h = '<div class="skill-line">';
+  if(st.n){
+    h += '<span class="avg">' + st.avg.toFixed(1) + ' <small>skill</small></span>' + histSvg(st.dist);
+    if(g.avg != null && st.n >= 2){
+      const d = st.avg - g.avg;
+      if(d >= 0.5) h += '<span class="sk-flag hi" title="Promedio general ' + g.avg.toFixed(1) + '">Concentra los mejores · +' + d.toFixed(1) + '</span>';
+      else if(d <= -0.5) h += '<span class="sk-flag lo" title="Promedio general ' + g.avg.toFixed(1) + '">Skill bajo · ' + d.toFixed(1).replace('-', '−') + '</span>';
+    }
+  } else h += '<span>Skill sin evaluar</span>';
+  if(st.n && st.miss) h += '<span>' + st.miss + ' sin evaluar</span>';
+  if(kids.length){
+    const all = a.m.concat(...descendants(t.id).map(membersOf));
+    const ss = skillStats(all);
+    if(ss.n) h += '<span class="sub-sk">Con sub-equipos: <b>' + ss.avg.toFixed(1) + '</b> · ' + ss.n + ' evaluados' + (ss.miss ? ' · ' + ss.miss + ' sin evaluar' : '') + '</span>';
+  }
+  return h + '</div>';
+}
+let skillView = false;
+try { skillView = localStorage.getItem('organigrama-skillview') === '1'; } catch(e){}
 
 function analyze(teamId){
   const m = membersOf(teamId);
@@ -679,6 +738,7 @@ function render(){
   document.title = 'Organigrama · ' + (S.tribe.name || '');
   $('#undoBtn').disabled = !hist.length;
   renderStats(); renderLegend(); renderTree(); renderPool();
+  const svb = $('#skillViewBtn'); if(svb){ svb.classList.toggle('on', skillView); svb.setAttribute('aria-pressed', skillView); }
   renderNotes();
 }
 
@@ -796,6 +856,8 @@ function renderStats(){
     stat('Personas', S.people.length) +
     stat('Equipos', S.teams.length) +
     stat('Promedio por equipo', avg) +
+    stat('Skill promedio', globalSkill().avg != null ? globalSkill().avg.toFixed(1) : '—') +
+    stat('Sin evaluar', S.people.filter(p => !skillOf(p)).length) +
     stat('Sobre el máximo (' + S.settings.maxSize + ')', over, over > 0) +
     stat('Alertas', alerts, alerts > 0) +
     stat('De TMA', S.people.filter(p => p.company === EXT).length) +
@@ -808,9 +870,15 @@ function renderLegend(){
   $('#legend').innerHTML =
     '<span class="co-legend"><i style="border-color:var(--co-home)"></i>Personal</span>' +
     '<span class="co-legend"><i style="border-color:var(--co-ext)"></i>TMA</span>' +
-    S.roles.map(r =>
-    '<span><i style="background:' + esc(r.color) + '"></i>' + esc(r.short) + ' · ' + (totals[r.id] || 0) + '</span>').join('');
+    (skillView
+      ? [1,2,3,4,5,0].map(k => '<span><i style="background:' + SKC[k] + '"></i>' + (k ? 'Skill ' + k : 'Sin evaluar') + ' · ' + S.people.filter(p => skillOf(p) === k).length + '</span>').join('')
+      : S.roles.map(r =>
+    '<span><i style="background:' + esc(r.color) + '"></i>' + esc(r.short) + ' · ' + (totals[r.id] || 0) + '</span>').join(''));
 }
+document.addEventListener('change', e => {
+  if(!e.target.matches || !e.target.matches('.sk-pick input')) return;
+  e.target.closest('.sk-pick').querySelectorAll('input').forEach(i => { i.nextElementSibling.style.background = i.checked ? i.nextElementSibling.dataset.c : ''; });
+});
 
 function ringSvg(n, max, over){
   const C = 2 * Math.PI * 23;
@@ -825,12 +893,12 @@ function ringSvg(n, max, over){
 function tip(p){
   const r = role(p.role);
   const nc = noteCount('person', p.id);
-  return p.name + (nc ? '  (' + nc + (nc === 1 ? ' comentario)' : ' comentarios)') : '') + '\n' + (p.title || r.label) + (p.company === EXT ? ' · TMA' : '') + (p.spec ? '\nEspecialidad: ' + p.spec : '') + (p.manager ? '\nJefe: ' + p.manager : '');
+  return p.name + (nc ? '  (' + nc + (nc === 1 ? ' comentario)' : ' comentarios)') : '') + '\n' + (p.title || r.label) + (p.company === EXT ? ' · TMA' : '') + (p.spec ? '\nEspecialidad: ' + p.spec : '') + '\nSkill: ' + (skillOf(p) ? skillOf(p) + ' de 5' : 'sin evaluar') + (p.manager ? '\nJefe: ' + p.manager : '');
 }
 function face(p){
   const r = role(p.role);
   const ext = p.company === EXT;
-  return '<button class="face' + (ext ? ' ext' : '') + (noteCount('person', p.id) ? ' noted' : '') + personClass(p) + '" draggable="true" data-pid="' + p.id + '" data-act="edit-person" title="' + esc(tip(p)) + '" aria-label="' + esc(p.name + ', ' + r.label + (ext ? ', de TMA' : '')) + '" style="background:' + soft(r.color) + ';color:' + esc(r.color) + '">' + esc(initials(p.name)) + '</button>';
+  return '<button class="face' + (ext ? ' ext' : '') + (noteCount('person', p.id) ? ' noted' : '') + personClass(p) + '" draggable="true" data-pid="' + p.id + '" data-act="edit-person" title="' + esc(tip(p)) + '" aria-label="' + esc(p.name + ', ' + r.label + (ext ? ', de TMA' : '')) + '" style="background:' + (skillView ? soft(SKC[skillOf(p)]) + ';color:' + SKC[skillOf(p)] : soft(r.color) + ';color:' + esc(r.color)) + '">' + esc(initials(p.name)) + (skillOf(p) ? '<span class="sk" style="background:' + SKC[skillOf(p)] + '">' + skillOf(p) + '</span>' : '') + '</button>';
 }
 function chip(p, showRole){
   const r = role(p.role);
@@ -839,6 +907,7 @@ function chip(p, showRole){
     '<span>' + esc(p.name) + (showRole ? ' · ' + esc(r.short) : '') + '</span>' +
     (noteCount('person', p.id) ? '<span class="note-dot" title="Tiene comentarios"></span>' : '') +
     (p.spec ? '<span class="spec-tag">' + esc(p.spec) + '</span>' : '') +
+    (skillOf(p) ? '<span class="sk-chip" style="background:' + SKC[skillOf(p)] + '" title="Skill ' + skillOf(p) + ' de 5">' + skillOf(p) + '</span>' : '') +
     (p.company === EXT && !showRole ? '<span class="co-tag">TMA</span>' : '') + '</button>';
 }
 
@@ -863,9 +932,9 @@ function renderTree(){
   $('#tree').innerHTML = h;
   const fl = S.teams.filter(t => t.parent === FLOAT);
   $('#floatPanel').classList.toggle('empty', !fl.length);
-  $('#floatPanel').innerHTML = '<div class="float-head"><h2>Equipos sin ubicar</h2><span class="count">' + fl.length + '</span></div>' +
-    '<p class="hint">Equipos que todavía no dependen de nadie. Elegí "Reporta a" para ubicarlos en el árbol.</p>' +
-    '<div class="float-list">' + fl.map(teamCard).join('') +
+  $('#floatPanel').innerHTML = '<div class="float-head"><h2>Otras estructuras / sin ubicar</h2><span class="count">' + fl.length + '</span></div>' +
+    '<p class="hint">Equipos que no dependen de la tribu. Pueden tener sus propios equipos a cargo: en el equipo que querés subordinar, elegí este en "Reporta a".</p>' +
+    '<div class="float-list">' + fl.map(t => '<div class="float-tree">' + renderLevel([t], 0) + '</div>').join('') +
     '<button class="btn float-add" data-act="add-team">+ Nuevo equipo</button></div>';
   if(typeof applyZoom === 'function' && $('#zoomVal')) try { if(autoFit) fitZoom(); else applyZoom(); } catch(e){}
 }
@@ -896,7 +965,7 @@ function teamCard(t){
   const subTotal = kids.length ? descendants(t.id).reduce((s, id) => s + membersOf(id).length, a.n) : 0;
   let h = '' +
         '<article class="team' + (a.over ? ' over' : '') + (exp && !col ? ' wide' : '') + (floating ? ' float' : '') + (col ? ' collapsed' : '') + '" style="border-width:' + borderFor(a.n) + 'px" data-drop="' + t.id + '" aria-label="Equipo ' + esc(t.name) + '">' +
-          (floating ? '<div class="float-tag">Sin ubicar · elegí de quién depende</div>' : '') + '<div class="team-head">' + ringSvg(a.n, max, a.over) +
+          (floating ? '<div class="float-tag">Fuera de la tribu</div>' : '') + '<div class="team-head">' + ringSvg(a.n, max, a.over) +
             '<div style="min-width:0"><h2>' + esc(t.name) + '</h2><div class="sub">' + a.n + ' de ' + max + ' · ' + a.present.length + (a.present.length === 1 ? ' rol' : ' roles') + '</div>' +
             (a.ext ? '<div class="sub ext">' + a.ext + ' de TMA</div>' : '') +
             '</div>' +
@@ -922,12 +991,13 @@ function teamCard(t){
       }
       const sp = Object.keys(a.specs).sort();
       if(sp.length) h += '<div class="spec-line">Especialidad:' + sp.map(k => '<span class="spec-tag">' + esc(k) + ' · ' + a.specs[k] + '</span>').join('') + '</div>';
+      h += skillLine(t, a, kids);
       if(a.warns.length) h += '<div class="warns">' + a.warns.map(w => '<span class="warn-pill">' + esc(w) + '</span>').join('') + '</div>';
       if(exp){
         h += '<div class="groups">' + (a.present.length ? a.present.map(rid => {
           const r = role(rid);
           return '<div class="group"><div class="group-head"><span class="tag" style="background:' + soft(r.color) + ';color:' + esc(r.color) + '">' + esc(r.label) + '</span><span>' + a.counts[rid] + '</span></div>' +
-            a.m.filter(p => p.role === rid).map(p => chip(p, false)).join('') + '</div>';
+            a.m.filter(p => p.role === rid).sort((x, y) => skillOf(y) - skillOf(x)).map(p => chip(p, false)).join('') + '</div>';
         }).join('') : '<div class="empty">Arrastrá personas acá</div>') + '</div>';
       } else if(a.present.length){
         h += '<div class="roles">' + a.present.map(rid => {
@@ -937,9 +1007,9 @@ function teamCard(t){
       }
       const blocked = [t.id].concat(descendants(t.id));
       h += '<label class="rep">Reporta a<select data-rep="' + t.id + '">' +
-        '<option value="' + FLOAT + '"' + (floating ? ' selected' : '') + '>— Sin ubicar —</option>' +
+        '<option value="' + FLOAT + '"' + (floating ? ' selected' : '') + '>— Fuera de la tribu —</option>' +
         '<option value=""' + (t.parent == null ? ' selected' : '') + '>' + esc(S.tribe.lead || 'Líder de tribu') + '</option>' +
-        S.teams.filter(x => !blocked.includes(x.id) && x.parent !== FLOAT).map(x => '<option value="' + x.id + '"' + (x.id === t.parent ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('') +
+        S.teams.filter(x => !blocked.includes(x.id)).map(x => '<option value="' + x.id + '"' + (x.id === t.parent ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('') +
         '</select></label>';
       h += '<button class="toggle" data-act="toggle" data-tid="' + t.id + '">' + (exp ? 'Achicar' : 'Ver integrantes') + '</button>' +
         moveRow(t) + '</article>';
@@ -1019,6 +1089,8 @@ function personDialog(p, co){
     '<label class="field">Compañía de origen<select name="company">' + coOpts + '</select></label></div>' +
     '<label class="field">Equipo<select name="team">' + teamOptions(p.team) + '</select></label>' +
     '<label class="field">Especialidad<input name="spec" list="specList" value="' + esc(p.spec || '') + '" placeholder="Ej: DB, SO, Networking"></label>' +
+    '<div class="field">Skill (1 a 5)<div class="sk-pick" role="radiogroup" aria-label="Skill">' + [0,1,2,3,4,5].map(k =>
+      '<label><input type="radio" name="skill" value="' + k + '"' + (skillOf(p) === k ? ' checked' : '') + '><span style="' + (skillOf(p) === k ? 'background:' + SKC[k] : '') + '" data-c="' + SKC[k] + '">' + (k || 'Sin evaluar') + '</span></label>').join('') + '</div></div>' +
     '<datalist id="specList">' + [...new Set(S.people.map(x => x.spec).filter(Boolean))].sort().map(x => '<option value="' + esc(x) + '">').join('') + '</datalist>' +
     '<div class="grid2"><label class="field">Puesto<input name="title" value="' + esc(p.title || '') + '"></label>' +
     '<label class="field">Jefe directo<input name="manager" value="' + esc(p.manager || '') + '"></label></div>',
@@ -1030,7 +1102,7 @@ function personDialog(p, co){
       if(v === 'delete'){ commit(() => { S.people = S.people.filter(x => x.id !== p.id); }); toast('Persona eliminada'); return; }
       const name = f.elements.name.value.trim(); if(!name) return false;
       commit(() => {
-        const vals = {name, role:f.elements.role.value, team:f.elements.team.value, company:f.elements.company.value, title:f.elements.title.value.trim(), manager:f.elements.manager.value.trim(), spec:f.elements.spec.value.trim()};
+        const vals = {name, role:f.elements.role.value, team:f.elements.team.value, company:f.elements.company.value, title:f.elements.title.value.trim(), manager:f.elements.manager.value.trim(), spec:f.elements.spec.value.trim(), skill:(+(f.querySelector('input[name=skill]:checked') || {}).value || null)};
         if(isNew) S.people.push(Object.assign({id:uid('p')}, vals));
         else Object.assign(S.people.find(x => x.id === p.id), vals);
       });
@@ -1042,9 +1114,9 @@ function teamDialog(t){
   t = t || {name:''};
   const blocked = isNew ? [] : [t.id].concat(descendants(t.id));
   if(isNew) t.parent = FLOAT;
-  const parentOpts = '<option value="' + FLOAT + '"' + (t.parent === FLOAT ? ' selected' : '') + '>— Sin ubicar (queda al costado) —</option>' +
+  const parentOpts = '<option value="' + FLOAT + '"' + (t.parent === FLOAT ? ' selected' : '') + '>— Fuera de la tribu (estructura aparte) —</option>' +
     '<option value=""' + (t.parent == null ? ' selected' : '') + '>' + esc(S.tribe.lead || 'Líder de tribu') + ' (directo)</option>' +
-    S.teams.filter(x => !blocked.includes(x.id) && x.parent !== FLOAT).map(x =>
+    S.teams.filter(x => !blocked.includes(x.id)).map(x =>
       '<option value="' + x.id + '"' + (x.id === t.parent ? ' selected' : '') + '>' + '— '.repeat(depthOf(x)) + esc(x.name) + '</option>').join('');
   openDialog(isNew ? 'Nuevo equipo' : 'Editar equipo',
     '<label class="field">Nombre del equipo<input name="name" required value="' + esc(t.name) + '"></label>' +
@@ -1130,7 +1202,7 @@ function settingsDialog(){
 
 function importDialog(){
   openDialog('Importar',
-    '<p class="note">Pegá una lista con una persona por línea: <b>Nombre; Rol; Equipo; Compañía; Especialidad</b> (también acepta comas o tabulaciones, por ejemplo copiado de Excel). El rol puede ser la sigla o el nombre; los roles y equipos que no existan se crean solos. Si falta el equipo, la persona queda en "Sin asignar". La compañía es opcional: poné TMA para quienes vienen de TMA (si no, se toma Personal).</p>' +
+    '<p class="note">Pegá una lista con una persona por línea: <b>Nombre; Rol; Equipo; Compañía; Especialidad; Skill</b> (también acepta comas o tabulaciones, por ejemplo copiado de Excel). El rol puede ser la sigla o el nombre; los roles y equipos que no existan se crean solos. Si falta el equipo, la persona queda en "Sin asignar". La compañía es opcional: poné TMA para quienes vienen de TMA (si no, se toma Personal).</p>' +
     '<label class="field">Lista<textarea name="csv" placeholder="Ana Pérez; TL; Plataforma Cloud&#10;Juan Gómez; SRE; Observabilidad&#10;Laura Díaz; DevOps; ; TMA"></textarea></label>' +
     '<label class="field" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="replace" style="min-height:auto"> Reemplazar a todas las personas actuales</label>' +
     '<p class="note">¿Tenés un archivo exportado antes? <button type="button" class="btn" id="pickJson" style="min-height:34px;margin-left:6px">Abrir JSON…</button></p>',
@@ -1144,7 +1216,7 @@ function importDialog(){
         lines.forEach(line => {
           const parts = line.split(/\t|;|,/).map(x => x.trim());
           const name = parts[0]; if(!name || /^nombre$/i.test(name)) return;
-          const rRaw = parts[1] || '', tRaw = parts[2] || '', company = /^tma$/i.test(parts[3] || '') ? EXT : HOME, spec = parts[4] || '';
+          const rRaw = parts[1] || '', tRaw = parts[2] || '', company = /^tma$/i.test(parts[3] || '') ? EXT : HOME, spec = parts[4] || '', skill = /^[1-5]$/.test(parts[5] || '') ? +parts[5] : null;
           let r = S.roles.find(x => x.short.toLowerCase() === rRaw.toLowerCase() || x.label.toLowerCase() === rRaw.toLowerCase());
           if(!r && rRaw){ r = {id:uid('r'), label:rRaw, short:rRaw.slice(0,3).toUpperCase(), color:'#5D5D72'}; S.roles.push(r); }
           let team = UN;
@@ -1153,7 +1225,7 @@ function importDialog(){
             if(!t){ t = {id:uid('t'), name:tRaw}; S.teams.push(t); }
             team = t.id;
           }
-          S.people.push({id:uid('p'), name, role: r ? r.id : (S.roles[0] || {}).id, team, company, spec});
+          S.people.push({id:uid('p'), name, role: r ? r.id : (S.roles[0] || {}).id, team, company, spec, skill});
           added++;
         });
       });
@@ -1188,6 +1260,7 @@ document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]'); if(!el || dlg.contains(el)) return;
   const act = el.dataset.act, tid = el.dataset.tid;
   if(act === 'toggle'){ S.expanded[tid] = !S.expanded[tid]; save(); render(); }
+  else if(act === 'skill-view'){ skillView = !skillView; try { localStorage.setItem('organigrama-skillview', skillView ? '1' : '0'); } catch(e){} render(); }
   else if(act === 'expand-all'){ S.teams.forEach(t => S.expanded[t.id] = true); save(); render(); }
   else if(act === 'collapse-all'){ S.expanded = {}; save(); render(); }
   else if(act === 'collapse'){ S.collapsed = S.collapsed || {}; if(S.collapsed[tid]) delete S.collapsed[tid]; else S.collapsed[tid] = true; save(); render(); }
