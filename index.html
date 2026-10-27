@@ -933,6 +933,20 @@ function otherRoots(){ return S.teams.filter(t => t.lead); }
 // equipo que no cuenta en nuestra estructura: cuelga (directa o indirectamente) de otro líder
 function isOutside(teamId){ let t = S.teams.find(x => x.id === teamId), n = 0; while(t && n++ < 200){ if(t.lead) return true; t = S.teams.find(x => x.id === t.parent); } return false; }
 function ourTeams(){ return S.teams.filter(t => !isOutside(t.id)); }
+function countHeads(){
+  const ids = S.settings.countHeads;
+  if(Array.isArray(ids)) return ids.map(id => S.people.find(p => p.id === id)).filter(Boolean);
+  const norm = x => (x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return S.people.filter(p => /gaston\s+covetta|nestor\s+vogel/.test(norm(p.name)));
+}
+function countedTeams(){
+  const heads = countHeads();
+  const ours = ourTeams();
+  if(!heads.length) return {heads, teams: ours};
+  const set = new Set();
+  heads.forEach(h => { if(S.teams.some(t => t.id === h.team)) descendants(h.team).forEach(id => set.add(id)); });
+  return {heads, teams: ours.filter(t => set.has(t.id))};
+}
 function ourPeople(){ return S.people.filter(p => p.team !== PARK && p.team !== MIRA && !isOutside(p.team)); }
 function descendants(id){ const out = []; childrenOf(id).forEach(c => { out.push(c.id); out.push(...descendants(c.id)); }); return out; }
 function isStack(id){ return false; } // sub-equipos siempre uno al lado del otro
@@ -1125,13 +1139,15 @@ function renderStats(){
   const over = teams.filter(t => t.over).length;
   const alerts = teams.reduce((a, t) => a + t.warns.length, 0);
   const un = membersOf(UN).length;
-  const nT = ourTeams().length;
-  const avg = nT ? (assigned / nT).toFixed(1) : '0';
-  const stat = (l, v, w) => '<div class="stat' + (w ? ' warn' : '') + '"><span>' + l + '</span><span>' + v + '</span></div>';
+  // "Equipos" cuenta solo los que dependen de los responsables elegidos (por defecto Gastón Covetta y Néstor Vogel)
+  const ct = countedTeams();
+  const nT = ct.teams.length;
+  const avg = nT ? (ct.teams.reduce((a, t) => a + membersOf(t.id).length, 0) / nT).toFixed(1) : '0';
+  const stat = (l, v, w, title) => '<div class="stat' + (w ? ' warn' : '') + '"' + (title ? ' title="' + esc(title) + '"' : '') + '><span>' + l + '</span><span>' + v + '</span></div>';
   $('#stats').innerHTML =
     stat('Personas', ourPeople().filter(p => p.company !== THIRD).length) +
     stat('Terceros', ourPeople().filter(p => p.company === THIRD).length) +
-    stat('Equipos', nT) +
+    stat('Equipos', nT, false, ct.heads.length ? 'Equipos que dependen de ' + ct.heads.map(p => p.name).join(' y ') : 'Todos los equipos (no se encontró a los responsables)') +
     stat('Promedio por equipo', avg) +
     stat('Skill promedio', globalSkill().avg != null ? globalSkill().avg.toFixed(1) : '—') +
     stat('Sin evaluar', ourPeople().filter(p => !skillOf(p)).length) +
