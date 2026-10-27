@@ -451,6 +451,13 @@ body.locked .drawer{display:none!important}
 [data-theme=dark] .db-leg i.hm-over{border-color:#3D7CC7}[data-theme=dark] .db-leg i.hm-under{border-color:#A04A55}[data-theme=dark] .db-leg i.hm-off{border-color:#B07A20}
 @keyframes flashringd{0%,100%{box-shadow:0 0 0 0 transparent}30%{box-shadow:0 0 0 6px #4CC3F066}}
 [data-theme=dark] .flash{animation-name:flashringd}
+
+/* encabezado de tarjeta: herramientas en su propia fila para que no tapen el nombre */
+.team-head{flex-wrap:wrap;row-gap:6px}
+.team-head > .team-tools{order:-1;flex:1 0 100%;justify-content:flex-end;margin:-6px -6px 0 0}
+.team h2{overflow-wrap:break-word}
+.team.compact .cp-head{flex-wrap:wrap;row-gap:4px}
+.team.compact .cp-head > .team-tools{order:-1;flex:1 0 100%;justify-content:flex-end;margin:-4px -4px 0 0}
 </style>
 </head>
 <body>
