@@ -498,6 +498,10 @@ body.locked .drawer{display:none!important}
 [data-theme=dark] .pool.mira .chip{border-color:#E5484D}
 .stat.mira{background:#FDECEC}.stat.mira span{color:#9B1C1C}
 [data-theme=dark] .stat.mira{background:#2A1216}[data-theme=dark] .stat.mira span{color:#FF8A8A}
+
+.stat.clickable{cursor:pointer}
+.stat.clickable:hover{outline:2px solid var(--line)}
+.stat.clickable:focus-visible{outline:2px solid var(--accent)}
 </style>
 </head>
 <body>
@@ -935,9 +939,22 @@ function isOutside(teamId){ let t = S.teams.find(x => x.id === teamId), n = 0; w
 function ourTeams(){ return S.teams.filter(t => !isOutside(t.id)); }
 function countHeads(){
   const ids = S.settings.countHeads;
-  if(Array.isArray(ids)) return ids.map(id => S.people.find(p => p.id === id)).filter(Boolean);
+  if(Array.isArray(ids) && ids.length) return ids.map(id => S.people.find(p => p.id === id)).filter(Boolean);
+  // sin elección guardada: se buscan por nombre y apellido, en cualquier orden y sin importar tildes ni mayúsculas
   const norm = x => (x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  return S.people.filter(p => /gaston\s+covetta|nestor\s+vogel/.test(norm(p.name)));
+  const has = (p, a, b) => { const n = norm(p.name); return n.includes(a) && n.includes(b); };
+  return S.people.filter(p => has(p, 'gaston', 'covetta') || has(p, 'nestor', 'vogel'));
+}
+function countHeadsDialog(){
+  const cur = countHeads().map(p => p.id);
+  // candidatos: gente de equipos que tienen equipos a cargo, más los elegidos actuales
+  const cand = S.people.filter(p => cur.includes(p.id) || (S.teams.some(t => t.id === p.team) && childrenOf(p.team).length))
+    .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  openDialog('¿De quién dependen los equipos que se cuentan?',
+    '<p class="note">El número "Equipos" de arriba cuenta los equipos que cuelgan del equipo de estas personas, en todos los niveles. Se guarda por persona, así que no se pierde si cambia el nombre.</p>' +
+    '<div class="pf-teams" style="margin-top:10px">' + (cand.length ? cand.map(p => '<label><input type="checkbox" name="h" value="' + p.id + '"' + (cur.includes(p.id) ? ' checked' : '') + '> ' + esc(p.name) + ' <small class="muted">· ' + esc(teamName(p.team)) + '</small></label>').join('') : '<span class="note">No hay personas en equipos con equipos a cargo.</span>') + '</div>',
+    '<button class="btn" value="cancel" formnovalidate>Cancelar</button><button class="btn primary" value="ok">Guardar</button>',
+    f => { const ids = [...f.querySelectorAll('input[name=h]:checked')].map(i => i.value); commit(() => { S.settings.countHeads = ids; }); });
 }
 function countedTeams(){
   const heads = countHeads();
@@ -1102,6 +1119,7 @@ function onNoteChange(p){
 document.getElementById('notesBtn').addEventListener('click', () => { if($('#drawer').hidden) openNotes(notesFilter.type === 'all' || notesFilter.type === 'general' ? notesFilter.type : 'all'); else $('#drawer').hidden = true; });
 document.getElementById('drawerClose').addEventListener('click', () => { $('#drawer').hidden = true; });
 document.addEventListener('keydown', e => { if(e.key === 'Escape' && !$('#drawer').hidden && !dlg.open) $('#drawer').hidden = true; });
+$('#stats').addEventListener('keydown', e => { if((e.key === 'Enter' || e.key === ' ') && e.target.dataset && e.target.dataset.act){ e.preventDefault(); e.target.click(); } });
 document.querySelector('.drawer-tabs').addEventListener('click', e => {
   const b = e.target.closest('[data-filter]'); if(!b) return;
   if(b.dataset.filter !== 'target') notesFilter = {type:b.dataset.filter, id:null};
@@ -1143,11 +1161,13 @@ function renderStats(){
   const ct = countedTeams();
   const nT = ct.teams.length;
   const avg = nT ? (ct.teams.reduce((a, t) => a + membersOf(t.id).length, 0) / nT).toFixed(1) : '0';
-  const stat = (l, v, w, title) => '<div class="stat' + (w ? ' warn' : '') + '"' + (title ? ' title="' + esc(title) + '"' : '') + '><span>' + l + '</span><span>' + v + '</span></div>';
+  const stat = (l, v, w, title, act) => '<div class="stat' + (w ? ' warn' : '') + (act ? ' clickable' : '') + '"' + (title ? ' title="' + esc(title) + '"' : '') + (act ? ' data-act="' + act + '" role="button" tabindex="0"' : '') + '><span>' + l + '</span><span>' + v + '</span></div>';
   $('#stats').innerHTML =
     stat('Personas', ourPeople().filter(p => p.company !== THIRD).length) +
     stat('Terceros', ourPeople().filter(p => p.company === THIRD).length) +
-    stat('Equipos', nT, false, ct.heads.length ? 'Equipos que dependen de ' + ct.heads.map(p => p.name).join(' y ') : 'Todos los equipos (no se encontró a los responsables)') +
+    (ct.heads.length
+      ? stat('Equipos', nT, false, 'Equipos que dependen de ' + ct.heads.map(p => p.name).join(' y ') + '. Tocá para cambiar.', 'count-heads')
+      : stat('Equipos · todos', nT, true, 'No encuentro de quién dependen los equipos a contar. Tocá para elegirlos.', 'count-heads')) +
     stat('Promedio por equipo', avg) +
     stat('Skill promedio', globalSkill().avg != null ? globalSkill().avg.toFixed(1) : '—') +
     stat('Sin evaluar', ourPeople().filter(p => !skillOf(p)).length) +
@@ -2076,6 +2096,7 @@ document.addEventListener('click', e => {
   else if(act === 'add-team') teamDialog(null);
   else if(act === 'add-other') teamDialog(null, true);
   else if(act === 'settings') settingsDialog();
+  else if(act === 'count-heads') countHeadsDialog();
   else if(act === 'export') exportJson();
   else if(act === 'import-menu') importDialog();
   else if(act === 'undo') undo();
