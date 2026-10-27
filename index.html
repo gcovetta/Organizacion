@@ -345,6 +345,10 @@ body.locked .drawer{display:none!important}
 .db-roles label span{width:8px;height:8px;border-radius:2px}
 .db-roles input{margin:0}
 .db-roles label:has(input:not(:checked)){color:var(--muted);text-decoration:line-through}
+
+.db-x{all:unset;cursor:pointer;color:var(--muted);font-size:11px;padding:0 6px 0 0}
+.db-x:hover{color:var(--warn)}
+.db-x:focus-visible{outline:2px solid var(--accent)}
 </style>
 </head>
 <body>
@@ -1324,6 +1328,11 @@ function dbData(){
   });
   return {roles, tot, N, rows: rows.filter(r => r.n)};
 }
+// equipos que no se muestran en el gráfico C (por defecto, Diseño & Ingeniería y Soporte & Operación)
+function dbHiddenC(){
+  if(Array.isArray(S.settings.dashHideC)) return S.settings.dashHideC;
+  return S.teams.filter(t => /dise[ñn]o.*ingenier/i.test(t.name) || /soporte.*operaci/i.test(t.name)).map(t => t.id);
+}
 // roles que no se muestran ni se cuentan en el tablero (por defecto, Gerente)
 function dbHidden(){
   if(Array.isArray(S.settings.dashHide)) return S.settings.dashHide;
@@ -1368,10 +1377,13 @@ function renderDash(){
       '<td class="muted">' + r.n + '</td><td style="font-weight:800;color:' + (r.idx < 70 ? 'var(--warn)' : 'var(--muted)') + '">' + r.idx + '</td></tr>').join('') +
     '<tr><td class="t muted">Tribu</td>' + tot.map(v => '<td class="muted">' + v + '</td>').join('') + '<td class="muted">' + N + '</td><td></td></tr></tbody></table></div></section>';
   // C · composición
-  const bar = (label, counts, n, flag, ref) => '<div class="db-row"><span' + (ref ? ' style="color:var(--muted)"' : '') + '>' + esc(label) + (flag ? '<span class="db-pill">desbalanceado</span>' : '') + '</span><div class="db-bar">' +
+  const hideC = dbHiddenC();
+  const bar = (label, counts, n, flag, ref, tid) => '<div class="db-row"><span' + (ref ? ' style="color:var(--muted)"' : '') + '>' + (tid ? '<button class="db-x" data-act="dash-hide-c" data-tid="' + tid + '" title="Ocultar de este gráfico" aria-label="Ocultar ' + esc(label) + ' del gráfico">✕</button>' : '') + esc(label) + (flag ? '<span class="db-pill">desbalanceado</span>' : '') + '</span><div class="db-bar">' +
     counts.map((v, i) => v ? '<span title="' + esc(roles[i].label) + ': ' + v + ' (' + Math.round(v / n * 100) + '%)" style="width:' + (v / n * 100) + '%;background:' + esc(roles[i].color) + '"></span>' : '').join('') + '</div><span style="font-size:12px;color:var(--muted);text-align:right">' + n + ' pers.</span></div>';
-  h += '<section class="db-sec"><h3>C · Composición de cada equipo (100%)</h3><p class="note">Compará la forma de cada barra con la de la tribu.</p><div class="db-leg">' + roles.map(r => '<span><i style="background:' + esc(r.color) + '"></i>' + esc(r.label) + '</span>').join('') + '</div>' +
-    bar('Tribu (referencia)', tot, N, false, true) + rows.map(r => bar(r.t.name, r.cells.map(c => c.v), r.n, r.idx < 70)).join('') + '</section>';
+  const hiddenRows = rows.filter(r => hideC.includes(r.t.id));
+  h += '<section class="db-sec"><h3>C · Composición de cada equipo (100%)</h3><p class="note">Proporción de cada rol dentro del equipo. Con la ✕ sacás un equipo de este gráfico.</p><div class="db-leg">' + roles.map(r => '<span><i style="background:' + esc(r.color) + '"></i>' + esc(r.label) + '</span>').join('') + '</div>' +
+    rows.filter(r => !hideC.includes(r.t.id)).map(r => bar(r.t.name, r.cells.map(c => c.v), r.n, r.idx < 70, false, r.t.id)).join('') +
+    (hiddenRows.length ? '<div class="db-leg" style="margin-top:10px">Ocultos: ' + hiddenRows.map(r => '<button class="lv-chip" data-act="dash-show-c" data-tid="' + r.t.id + '" title="Volver a mostrar">' + esc(r.t.name) + ' ↺</button>').join('') + '</div>' : '') + '</section>';
   $('#dbBody').innerHTML = h;
 }
 $('#dashView').addEventListener('change', e => {
@@ -1608,6 +1620,8 @@ document.addEventListener('click', e => {
   else if(act === 'list-close'){ LV.open = false; LV.fTeam = LV.fRole = null; if(LV.back){ LV.back = false; DB_V.open = true; } renderList(); renderDash(); }
   else if(act === 'list-unfilter'){ LV.fTeam = LV.fRole = null; renderList(); }
   else if(act === 'dash-open'){ DB_V.open = true; renderDash(); $('#dashView').focus(); }
+  else if(act === 'dash-hide-c'){ const cur = dbHiddenC().slice(); commit(() => { S.settings.dashHideC = cur.concat(el.dataset.tid); }); }
+  else if(act === 'dash-show-c'){ const cur = dbHiddenC().slice(); commit(() => { S.settings.dashHideC = cur.filter(x => x !== el.dataset.tid); }); }
   else if(act === 'dash-close'){ DB_V.open = false; renderDash(); }
   else if(act === 'dash-cell'){ LV.fTeam = el.dataset.tid; LV.fRole = el.dataset.rid; LV.filter = 'all'; LV.q = ''; LV.open = true; LV.back = true; DB_V.open = false; renderDash(); renderList(); }
   else if(act === 'list-sort'){ const k = el.dataset.k; if(LV.sort === k) LV.dir = -LV.dir; else { LV.sort = k; LV.dir = 1; } renderList(); }
