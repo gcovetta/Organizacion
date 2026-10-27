@@ -13,7 +13,7 @@
   --line:#C5C6D6; --soft-line:#ECECF3; --accent:#4B3FC9; --accent-ink:#FFFFFF;
   --warn-bg:#FFF1E6; --warn:#8A3B12; --warn-strong:#E2620E; --warn-border:#F2B48A;
   --ok:#1E7A4C; --radius:16px;
-  --co-home:#38A9E4; --co-home-bg:#EAF6FD; --co-ext:#2E9E5B; --co-ext-bg:#E8F6EE; --co-ext-ink:#1C6B3C;
+  --co-home:#38A9E4; --co-home-bg:#EAF6FD; --co-ext:#2E9E5B; --co-ext-bg:#E8F6EE; --co-ext-ink:#1C6B3C; --co-3p:#8E44AD; --co-3p-bg:#F4ECF9; --co-3p-ink:#5E2B78;
   color-scheme: light;
 }
 *{box-sizing:border-box}
@@ -278,6 +278,13 @@ body.locked .drawer{display:none!important}
 
 .pool.park{flex-basis:100%;border-color:#8A8AA0;background:#F1F1F6}
 .pool.park .count{color:#3F4152}
+
+/* ---- terceros (proveedores) ---- */
+.chip.third,.face.third{border-color:var(--co-3p)}
+.co-tag.third{background:var(--co-3p-bg);color:var(--co-3p-ink)}
+.team .sub.third{color:var(--co-3p-ink);font-weight:700}
+.pool.third{border-color:var(--co-3p);background:var(--co-3p-bg)}
+.pool.third .count{color:var(--co-3p-ink)}
 </style>
 </head>
 <body>
@@ -349,6 +356,7 @@ body.locked .drawer{display:none!important}
 <div class="pools">
   <section class="pool" id="poolHome" data-drop="u" data-co="Personal" aria-label="Sin asignar de Personal"></section>
   <section class="pool ext" id="poolExt" data-drop="u" data-co="TMA" aria-label="Sin asignar de TMA"></section>
+  <section class="pool third" id="poolThird" data-drop="u" data-co="Terceros" aria-label="Sin asignar de terceros"></section>
   <section class="pool park" id="poolPark" data-drop="park" aria-label="Parking lot"></section>
 </div>
 
@@ -383,7 +391,9 @@ const KEY = 'organigrama-equipos-v1';
 const UN = 'u';
 const PARK = 'park'; // parking lot: gente apartada, no cuenta en la estructura
 const HOME = 'Personal', EXT = 'TMA';
-const COMPANIES = [HOME, EXT];
+const THIRD = 'Terceros';
+const COMPANIES = [HOME, EXT, THIRD];
+function coClass(p){ return p.company === EXT ? ' ext' : p.company === THIRD ? ' third' : ''; }
 const FLOAT = '~';
 
 /* ---------- data ---------- */
@@ -696,7 +706,7 @@ function depthOf(t){ let d = 0, p = t.parent; while(p && p !== FLOAT){ d++; p = 
 function matches(p){
   if(!query) return true;
   const q = query.toLowerCase(), r = role(p.role);
-  return p.name.toLowerCase().includes(q) || (p.title || '').toLowerCase().includes(q) || (p.manager || '').toLowerCase().includes(q) || (p.spec || '').toLowerCase() === q || r.label.toLowerCase().includes(q) || r.short.toLowerCase() === q || (p.company || '').toLowerCase() === q;
+  return p.name.toLowerCase().includes(q) || (p.title || '').toLowerCase().includes(q) || (p.manager || '').toLowerCase().includes(q) || (p.spec || '').toLowerCase() === q || r.label.toLowerCase().includes(q) || r.short.toLowerCase() === q || (p.company || '').toLowerCase() === q || (p.vendor || '').toLowerCase().includes(q);
 }
 function personClass(p){ return query ? (matches(p) ? ' hit' : ' dim') : ''; }
 function toast(msg){
@@ -756,7 +766,7 @@ function analyze(teamId){
   if(n > 0 && leadRoles.length && !m.some(p => leadRoles.includes(p.role))) warns.push('Sin ' + leadRoles.map(id => role(id).label).join(' / '));
   if(present.length > maxRoles) warns.push(present.length + ' roles distintos (máx. ' + maxRoles + ')');
   const specs = {}; m.forEach(p => { if(p.spec) specs[p.spec] = (specs[p.spec] || 0) + 1; });
-  return {m, n, counts, present, warns, specs, over: n > maxSize, ext: m.filter(p => p.company === EXT).length};
+  return {m, n, counts, present, warns, specs, over: n > maxSize, ext: m.filter(p => p.company === EXT).length, third: m.filter(p => p.company === THIRD).length};
 }
 
 /* ---------- render ---------- */
@@ -881,7 +891,8 @@ function renderStats(){
   const avg = nT ? (assigned / nT).toFixed(1) : '0';
   const stat = (l, v, w) => '<div class="stat' + (w ? ' warn' : '') + '"><span>' + l + '</span><span>' + v + '</span></div>';
   $('#stats').innerHTML =
-    stat('Personas', ourPeople().length) +
+    stat('Personas', ourPeople().filter(p => p.company !== THIRD).length) +
+    stat('Terceros', ourPeople().filter(p => p.company === THIRD).length) +
     stat('Equipos', nT) +
     stat('Promedio por equipo', avg) +
     stat('Skill promedio', globalSkill().avg != null ? globalSkill().avg.toFixed(1) : '—') +
@@ -910,12 +921,14 @@ function renderLegend(){
   $('#legend').innerHTML =
     '<span class="co-legend"><i style="border-color:var(--co-home)"></i>Personal</span>' +
     '<span class="co-legend"><i style="border-color:var(--co-ext)"></i>TMA</span>' +
+    '<span class="co-legend"><i style="border-color:var(--co-3p)"></i>Terceros</span>' +
     (skillView
       ? [1,2,3,4,5,0].map(k => '<span><i style="background:' + SKC[k] + '"></i>' + (k ? 'Skill ' + k : 'Sin evaluar') + ' · ' + S.people.filter(p => skillOf(p) === k).length + '</span>').join('')
       : S.roles.map(r =>
     '<span><i style="background:' + esc(r.color) + '"></i>' + esc(r.short) + ' · ' + (totals[r.id] || 0) + '</span>').join(''));
 }
 document.addEventListener('change', e => {
+  if(e.target.name === 'company' && e.target.closest('#dlg')){ const vf = e.target.form.querySelector('.vendor-field'); if(vf) vf.hidden = e.target.value !== THIRD; return; }
   if(!e.target.matches || !e.target.matches('.sk-pick input')) return;
   e.target.closest('.sk-pick').querySelectorAll('input').forEach(i => { i.nextElementSibling.style.background = i.checked ? i.nextElementSibling.dataset.c : ''; });
 });
@@ -933,22 +946,22 @@ function ringSvg(n, max, over){
 function tip(p){
   const r = role(p.role);
   const nc = noteCount('person', p.id);
-  return p.name + (nc ? '  (' + nc + (nc === 1 ? ' comentario)' : ' comentarios)') : '') + '\n' + (p.title || r.label) + (p.company === EXT ? ' · TMA' : '') + (p.spec ? '\nEspecialidad: ' + p.spec : '') + '\nSkill: ' + (skillOf(p) ? skillOf(p) + ' de 5' : 'sin evaluar') + (p.manager ? '\nJefe: ' + p.manager : '');
+  return p.name + (nc ? '  (' + nc + (nc === 1 ? ' comentario)' : ' comentarios)') : '') + '\n' + (p.title || r.label) + (p.company === EXT ? ' · TMA' : p.company === THIRD ? ' · Tercero' + (p.vendor ? ' (' + p.vendor + ')' : '') : '') + (p.spec ? '\nEspecialidad: ' + p.spec : '') + '\nSkill: ' + (skillOf(p) ? skillOf(p) + ' de 5' : 'sin evaluar') + (p.manager ? '\nJefe: ' + p.manager : '');
 }
 function face(p){
   const r = role(p.role);
   const ext = p.company === EXT;
-  return '<button class="face' + (ext ? ' ext' : '') + (noteCount('person', p.id) ? ' noted' : '') + personClass(p) + '" draggable="true" data-pid="' + p.id + '" data-act="edit-person" title="' + esc(tip(p)) + '" aria-label="' + esc(p.name + ', ' + r.label + (ext ? ', de TMA' : '')) + '" style="background:' + (skillView ? soft(SKC[skillOf(p)]) + ';color:' + SKC[skillOf(p)] : soft(r.color) + ';color:' + esc(r.color)) + '">' + esc(initials(p.name)) + (skillOf(p) ? '<span class="sk" style="background:' + SKC[skillOf(p)] + '">' + skillOf(p) + '</span>' : '') + '</button>';
+  return '<button class="face' + coClass(p) + (noteCount('person', p.id) ? ' noted' : '') + personClass(p) + '" draggable="true" data-pid="' + p.id + '" data-act="edit-person" title="' + esc(tip(p)) + '" aria-label="' + esc(p.name + ', ' + r.label + (ext ? ', de TMA' : p.company === THIRD ? ', tercero' : '')) + '" style="background:' + (skillView ? soft(SKC[skillOf(p)]) + ';color:' + SKC[skillOf(p)] : soft(r.color) + ';color:' + esc(r.color)) + '">' + esc(initials(p.name)) + (skillOf(p) ? '<span class="sk" style="background:' + SKC[skillOf(p)] + '">' + skillOf(p) + '</span>' : '') + '</button>';
 }
 function chip(p, showRole){
   const r = role(p.role);
-  return '<button class="chip' + (p.company === EXT ? ' ext' : '') + personClass(p) + '" draggable="true" data-pid="' + p.id + '" data-act="edit-person" title="' + esc(tip(p)) + '">' +
+  return '<button class="chip' + coClass(p) + personClass(p) + '" draggable="true" data-pid="' + p.id + '" data-act="edit-person" title="' + esc(tip(p)) + '">' +
     '<span class="dot" style="background:' + soft(r.color) + ';color:' + esc(r.color) + '">' + esc(initials(p.name)) + '</span>' +
     '<span>' + esc(p.name) + (showRole ? ' · ' + esc(r.short) : '') + '</span>' +
     (noteCount('person', p.id) ? '<span class="note-dot" title="Tiene comentarios"></span>' : '') +
     (p.spec ? '<span class="spec-tag">' + esc(p.spec) + '</span>' : '') +
     (skillOf(p) ? '<span class="sk-chip" style="background:' + SKC[skillOf(p)] + '" title="Skill ' + skillOf(p) + ' de 5">' + skillOf(p) + '</span>' : '') +
-    (p.company === EXT && !showRole ? '<span class="co-tag">TMA</span>' : '') + '</button>';
+    (p.company === EXT && !showRole ? '<span class="co-tag">TMA</span>' : '') + (p.company === THIRD ? '<span class="co-tag third">' + esc(p.vendor || '3ro') + '</span>' : '') + '</button>';
 }
 
 const ICON_EXPAND = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2 6V2h4M14 6V2h-4M2 10v4h4M14 10v4h-4"/></svg>';
@@ -963,7 +976,7 @@ function renderTree(){
   const leadName = S.tribe.lead || 'Líder de tribu';
   let h = '<button class="root" data-act="settings" title="Editar tribu">' +
     '<span class="av">' + esc(initials(leadName)) + '</span>' +
-    '<span><b>' + esc(leadName) + '</b><small>' + esc(S.tribe.name || '') + ' · ' + ourPeople().length + ' personas</small></span></button>';
+    '<span><b>' + esc(leadName) + '</b><small>' + esc(S.tribe.name || '') + ' · ' + ourPeople().filter(p => p.company !== THIRD).length + ' personas' + (ourPeople().some(p => p.company === THIRD) ? ' + ' + ourPeople().filter(p => p.company === THIRD).length + (ourPeople().filter(p => p.company === THIRD).length === 1 ? ' tercero' : ' terceros') : '') + '</small></span></button>';
   if(roots.length){
     const totalLeaves = roots.reduce((a, t) => a + leaves(t.id), 0);
     h += '<div class="vline"></div>' + renderLevel(roots, totalLeaves * 340);
@@ -1023,6 +1036,7 @@ function teamCard(t){
           (floating ? '<div class="float-tag">Fuera de la tribu</div>' : '') + '<div class="team-head">' + ringSvg(a.n, max, a.over) +
             '<div style="min-width:0"><h2>' + esc(t.name) + '</h2><div class="sub">' + a.n + ' de ' + max + ' · ' + a.present.length + (a.present.length === 1 ? ' rol' : ' roles') + '</div>' +
             (a.ext ? '<div class="sub ext">' + a.ext + ' de TMA</div>' : '') +
+            (a.third ? '<div class="sub third">' + a.third + (a.third === 1 ? ' tercero' : ' terceros') + '</div>' : '') +
             '</div>' +
             '<div class="team-tools">' +
               '<button class="mini" data-act="collapse" data-tid="' + t.id + '" aria-expanded="' + !col + '" aria-label="' + (col ? 'Desplegar' : 'Colapsar') + ' equipo ' + esc(t.name) + '" title="' + (col ? 'Desplegar' : 'Colapsar') + '">' + (col ? ICON_DOWN : ICON_UP) + '</button>' +
@@ -1097,11 +1111,11 @@ function renderLevel(list, minW){
 }
 
 function renderPool(){
-  [['#poolHome', HOME, 'Sin asignar · Personal'], ['#poolExt', EXT, 'TMA · sin asignar']].forEach(([sel, co, title]) => {
+  [['#poolHome', HOME, 'Sin asignar · Personal'], ['#poolExt', EXT, 'TMA · sin asignar'], ['#poolThird', THIRD, 'Terceros · sin asignar']].forEach(([sel, co, title]) => {
     const m = membersOf(UN).filter(p => (p.company || HOME) === co);
     $(sel).innerHTML = '<div class="pool-head"><h2>' + title + '</h2><span class="count">' + m.length + '</span>' +
-      '<span class="hint">' + (co === EXT ? 'personas que vienen de TMA · arrastralas a un equipo' : 'arrastrá a un equipo') + '</span>' +
-      '<button class="btn pool-add" data-act="add-person" data-co="' + co + '">+ Persona' + (co === EXT ? ' de TMA' : '') + '</button></div>' +
+      '<span class="hint">' + (co === EXT ? 'personas que vienen de TMA · arrastralas a un equipo' : co === THIRD ? 'personas de proveedores · cuentan en los equipos, arriba van aparte' : 'arrastrá a un equipo') + '</span>' +
+      '<button class="btn pool-add" data-act="add-person" data-co="' + co + '">+ Persona' + (co === EXT ? ' de TMA' : co === THIRD ? ' de tercero' : '') + '</button></div>' +
       '<div class="pool-list">' + (m.length ? m.map(p => chip(p, true)).join('') : '<span class="hint">Vacío</span>') + '</div>';
   });
   const pk = membersOf(PARK);
@@ -1143,10 +1157,12 @@ function personDialog(p, co){
   const isNew = !p;
   p = p || {name:'', role:(S.roles[1] || S.roles[0] || {}).id, team:UN, company: co || HOME};
   const coOpts = COMPANIES.map(c => '<option' + (c === (p.company || HOME) ? ' selected' : '') + '>' + c + '</option>').join('');
-  openDialog(isNew ? 'Agregar persona' + (p.company === EXT ? ' de ' + EXT : '') : 'Editar persona',
+  openDialog(isNew ? (p.company === THIRD ? 'Agregar tercero' : 'Agregar persona' + (p.company === EXT ? ' de ' + EXT : '')) : 'Editar persona',
     '<label class="field">Nombre<input name="name" required value="' + esc(p.name) + '" placeholder="Nombre y apellido"></label>' +
     '<div class="grid2"><label class="field">Rol<select name="role">' + roleOptions(p.role) + '</select></label>' +
     '<label class="field">Compañía de origen<select name="company">' + coOpts + '</select></label></div>' +
+    '<label class="field vendor-field"' + (p.company === THIRD ? '' : ' hidden') + '>Proveedor<input name="vendor" list="vendorList" value="' + esc(p.vendor || '') + '" placeholder="Nombre de la empresa proveedora"></label>' +
+    '<datalist id="vendorList">' + [...new Set(S.people.map(x => x.vendor).filter(Boolean))].sort().map(x => '<option value="' + esc(x) + '">').join('') + '</datalist>' +
     '<label class="field">Equipo<select name="team">' + teamOptions(p.team) + '</select></label>' +
     '<label class="field">Especialidad<input name="spec" list="specList" value="' + esc(p.spec || '') + '" placeholder="Ej: DB, SO, Networking"></label>' +
     '<div class="field">Skill (1 a 5)<div class="sk-pick" role="radiogroup" aria-label="Skill">' + [0,1,2,3,4,5].map(k =>
@@ -1162,7 +1178,7 @@ function personDialog(p, co){
       if(v === 'delete'){ commit(() => { S.people = S.people.filter(x => x.id !== p.id); }); toast('Persona eliminada'); return; }
       const name = f.elements.name.value.trim(); if(!name) return false;
       commit(() => {
-        const vals = {name, role:f.elements.role.value, team:f.elements.team.value, company:f.elements.company.value, title:f.elements.title.value.trim(), manager:f.elements.manager.value.trim(), spec:f.elements.spec.value.trim(), skill:(+(f.querySelector('input[name=skill]:checked') || {}).value || null)};
+        const vals = {name, role:f.elements.role.value, team:f.elements.team.value, company:f.elements.company.value, vendor:f.elements.company.value === THIRD ? f.elements.vendor.value.trim() : '', title:f.elements.title.value.trim(), manager:f.elements.manager.value.trim(), spec:f.elements.spec.value.trim(), skill:(+(f.querySelector('input[name=skill]:checked') || {}).value || null)};
         if(isNew) S.people.push(Object.assign({id:uid('p')}, vals));
         else Object.assign(S.people.find(x => x.id === p.id), vals);
       });
@@ -1264,7 +1280,7 @@ function settingsDialog(){
 
 function importDialog(){
   openDialog('Importar',
-    '<p class="note">Pegá una lista con una persona por línea: <b>Nombre; Rol; Equipo; Compañía; Especialidad; Skill</b> (también acepta comas o tabulaciones, por ejemplo copiado de Excel). El rol puede ser la sigla o el nombre; los roles y equipos que no existan se crean solos. Si falta el equipo, la persona queda en "Sin asignar". La compañía es opcional: poné TMA para quienes vienen de TMA (si no, se toma Personal).</p>' +
+    '<p class="note">Pegá una lista con una persona por línea: <b>Nombre; Rol; Equipo; Compañía; Especialidad; Skill</b> (también acepta comas o tabulaciones, por ejemplo copiado de Excel). El rol puede ser la sigla o el nombre; los roles y equipos que no existan se crean solos. Si falta el equipo, la persona queda en "Sin asignar". La compañía es opcional: poné TMA para quienes vienen de TMA o Tercero para gente de proveedores (si no, se toma Personal).</p>' +
     '<label class="field">Lista<textarea name="csv" placeholder="Ana Pérez; TL; Plataforma Cloud&#10;Juan Gómez; SRE; Observabilidad&#10;Laura Díaz; DevOps; ; TMA"></textarea></label>' +
     '<label class="field" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="replace" style="min-height:auto"> Reemplazar a todas las personas actuales</label>' +
     '<p class="note">¿Tenés un archivo exportado antes? <button type="button" class="btn" id="pickJson" style="min-height:34px;margin-left:6px">Abrir JSON…</button></p>',
@@ -1278,7 +1294,7 @@ function importDialog(){
         lines.forEach(line => {
           const parts = line.split(/\t|;|,/).map(x => x.trim());
           const name = parts[0]; if(!name || /^nombre$/i.test(name)) return;
-          const rRaw = parts[1] || '', tRaw = parts[2] || '', company = /^tma$/i.test(parts[3] || '') ? EXT : HOME, spec = parts[4] || '', skill = /^[1-5]$/.test(parts[5] || '') ? +parts[5] : null;
+          const rRaw = parts[1] || '', tRaw = parts[2] || '', company = /^tma$/i.test(parts[3] || '') ? EXT : /^(terceros?|proveedor(es)?)$/i.test(parts[3] || '') ? THIRD : HOME, spec = parts[4] || '', skill = /^[1-5]$/.test(parts[5] || '') ? +parts[5] : null;
           let r = S.roles.find(x => x.short.toLowerCase() === rRaw.toLowerCase() || x.label.toLowerCase() === rRaw.toLowerCase());
           if(!r && rRaw){ r = {id:uid('r'), label:rRaw, short:rRaw.slice(0,3).toUpperCase(), color:'#5D5D72'}; S.roles.push(r); }
           let team = UN;
