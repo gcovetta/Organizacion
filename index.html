@@ -259,6 +259,15 @@ body.locked .drawer{display:none!important}
 .sk-pick input:checked + span{color:#fff;border-color:transparent}
 .sk-pick input:focus-visible + span{outline:2px solid var(--accent);outline-offset:2px}
 .btn.on{background:var(--ink);color:#fff}
+
+/* ---- otras estructuras (líderes aparte, p. ej. B2B) ---- */
+.roots{display:flex;align-items:flex-start;gap:56px;width:max-content;min-width:100%;justify-content:center}
+.root-col{display:flex;flex-direction:column;align-items:center}
+.root-col.other{padding:16px 20px 20px;border:2px dashed #B9B9CC;border-radius:var(--radius);background:rgba(255,255,255,.45)}
+.other-tag{font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px;background:#E6E6EF;color:#3F4152;margin-bottom:10px}
+.root.other-root{background:#3F4152}
+.root.other-root .av{background:#8A8AA0}
+.add-other{margin-top:28px}
 </style>
 </head>
 <body>
@@ -431,7 +440,7 @@ function normalize(d){
   b.collapsed = d.collapsed || {};
   const teamIds = new Set(b.teams.map(t => t.id));
   b.people.forEach(p => { if(!teamIds.has(p.team)) p.team = UN; if(!p.id) p.id = uid('p'); if(!COMPANIES.includes(p.company)) p.company = HOME; });
-  b.teams.forEach(t => { if(t.parent === FLOAT) return; if(!t.parent || !teamIds.has(t.parent) || t.parent === t.id) t.parent = null; });
+  b.teams.forEach(t => { if(t.lead){ t.parent = null; return; } if(t.parent === FLOAT) return; if(!t.parent || !teamIds.has(t.parent) || t.parent === t.id) t.parent = null; });
   // corta ciclos si el archivo viene roto
   b.teams.forEach(t => { const seen = new Set([t.id]); let p = t.parent;
     while(p){ if(seen.has(p)){ t.parent = null; break; } seen.add(p); p = (b.teams.find(x => x.id === p) || {}).parent; } });
@@ -483,7 +492,7 @@ function pump(){
   }
 }
 function cfgOf(x){ return {tribe:x.tribe, settings:x.settings, roles:x.roles}; }
-function teamDoc(t, i){ return {name:t.name, parent:t.parent == null ? null : t.parent, order:i}; }
+function teamDoc(t, i){ const d = {name:t.name, parent:t.parent == null ? null : t.parent, order:i}; if(t.lead) d.lead = true; return d; }
 function personDoc(p){ const o = Object.assign({}, p); delete o.id; return o; }
 function sync(prev, next){
   if(JSON.stringify(cfgOf(prev)) !== JSON.stringify(cfgOf(next))){ const c = cfgOf(next); enqueue(() => DB.doc('meta/config').set(JSON.parse(JSON.stringify(c)))); }
@@ -662,7 +671,12 @@ function membersOf(teamId){ return S.people.filter(p => p.team === teamId); }
 function setParent(t, parent){
   t.parent = parent;
 }
-function childrenOf(id){ return S.teams.filter(t => (t.parent || null) === id); }
+function childrenOf(id){ return S.teams.filter(t => (t.parent || null) === id && !(id === null && t.lead)); }
+function otherRoots(){ return S.teams.filter(t => t.lead); }
+// equipo que no cuenta en nuestra estructura: cuelga (directa o indirectamente) de otro líder
+function isOutside(teamId){ let t = S.teams.find(x => x.id === teamId), n = 0; while(t && n++ < 200){ if(t.lead) return true; t = S.teams.find(x => x.id === t.parent); } return false; }
+function ourTeams(){ return S.teams.filter(t => !isOutside(t.id)); }
+function ourPeople(){ return S.people.filter(p => !isOutside(p.team)); }
 function descendants(id){ const out = []; childrenOf(id).forEach(c => { out.push(c.id); out.push(...descendants(c.id)); }); return out; }
 function isStack(id){ return false; } // sub-equipos siempre uno al lado del otro
 function leaves(id){ const ch = childrenOf(id); return (!ch.length || isStack(id) || (S.collapsed || {})[id]) ? 1 : ch.reduce((a, c) => a + leaves(c.id), 0); }
@@ -685,7 +699,7 @@ function skillStats(list){
   ev.forEach(p => dist[skillOf(p)]++);
   return {n:ev.length, miss:list.length - ev.length, avg: ev.length ? ev.reduce((a, p) => a + skillOf(p), 0) / ev.length : null, dist};
 }
-function globalSkill(){ return skillStats(S.people.filter(p => p.team !== UN)); }
+function globalSkill(){ return skillStats(ourPeople().filter(p => p.team !== UN)); }
 function histSvg(dist){
   const mx = Math.max(1, ...dist.slice(1));
   return '<span class="hist" aria-hidden="true">' + [1,2,3,4,5].map(k =>
@@ -846,22 +860,23 @@ $('#noteForm').addEventListener('submit', async e => {
 });
 
 function renderStats(){
-  const teams = S.teams.map(t => analyze(t.id));
+  const teams = ourTeams().map(t => analyze(t.id));
   const assigned = teams.reduce((a, t) => a + t.n, 0);
   const over = teams.filter(t => t.over).length;
   const alerts = teams.reduce((a, t) => a + t.warns.length, 0);
   const un = membersOf(UN).length;
-  const avg = S.teams.length ? (assigned / S.teams.length).toFixed(1) : '0';
+  const nT = ourTeams().length;
+  const avg = nT ? (assigned / nT).toFixed(1) : '0';
   const stat = (l, v, w) => '<div class="stat' + (w ? ' warn' : '') + '"><span>' + l + '</span><span>' + v + '</span></div>';
   $('#stats').innerHTML =
-    stat('Personas', S.people.length) +
-    stat('Equipos', S.teams.length) +
+    stat('Personas', ourPeople().length) +
+    stat('Equipos', nT) +
     stat('Promedio por equipo', avg) +
     stat('Skill promedio', globalSkill().avg != null ? globalSkill().avg.toFixed(1) : '—') +
-    stat('Sin evaluar', S.people.filter(p => !skillOf(p)).length) +
+    stat('Sin evaluar', ourPeople().filter(p => !skillOf(p)).length) +
     stat('Sobre el máximo (' + S.settings.maxSize + ')', over, over > 0) +
     stat('Alertas', alerts, alerts > 0) +
-    stat('De TMA', S.people.filter(p => p.company === EXT).length) +
+    stat('De TMA', ourPeople().filter(p => p.company === EXT).length) +
     stat('Sin asignar', un, un > 0);
 }
 
@@ -924,12 +939,27 @@ function renderTree(){
   const leadName = S.tribe.lead || 'Líder de tribu';
   let h = '<button class="root" data-act="settings" title="Editar tribu">' +
     '<span class="av">' + esc(initials(leadName)) + '</span>' +
-    '<span><b>' + esc(leadName) + '</b><small>' + esc(S.tribe.name || '') + ' · ' + S.people.length + ' personas</small></span></button>';
+    '<span><b>' + esc(leadName) + '</b><small>' + esc(S.tribe.name || '') + ' · ' + ourPeople().length + ' personas</small></span></button>';
   if(roots.length){
     const totalLeaves = roots.reduce((a, t) => a + leaves(t.id), 0);
     h += '<div class="vline"></div>' + renderLevel(roots, totalLeaves * 340);
   }
   h += '<button class="btn add-team" data-act="add-team">+ Nuevo equipo</button>';
+  const others = otherRoots();
+  if(others.length){
+    h = '<div class="roots"><div class="root-col">' + h + '</div>' + others.map(o => {
+      const kids = childrenOf(o.id);
+      const n = membersOf(o.id).length + descendants(o.id).reduce((a, id) => a + membersOf(id).length, 0);
+      let c = '<div class="root-col other"><span class="other-tag">Otra estructura · no cuenta en la nuestra</span>' +
+        '<button class="root other-root" data-act="edit-team" data-tid="' + o.id + '" title="Editar ' + esc(o.name) + '">' +
+        '<span class="av">' + esc(initials(o.name)) + '</span>' +
+        '<span><b>' + esc(o.name) + '</b><small>Sin líder · ' + n + ' personas</small></span></button>' +
+        '<div class="vline"></div>' + teamCard(o);
+      if(kids.length && !(S.collapsed || {})[o.id]) c += '<div class="vline"></div>' + renderLevel(kids, kids.reduce((a, t) => a + leaves(t.id), 0) * 340);
+      return c + '</div>';
+    }).join('') + '</div>';
+  }
+  h += '<button class="btn add-other" data-act="add-other" title="Un líder aparte, al nivel de ' + esc(leadName) + ', cuya gente no cuenta en esta estructura">+ Otra estructura</button>';
   $('#tree').innerHTML = h;
   const fl = S.teams.filter(t => t.parent === FLOAT);
   $('#floatPanel').classList.toggle('empty', !fl.length);
@@ -940,7 +970,7 @@ function renderTree(){
   if(typeof applyZoom === 'function' && $('#zoomVal')) try { if(autoFit) fitZoom(); else applyZoom(); } catch(e){}
 }
 
-function siblingsOf(t){ const p = t.parent || null; return S.teams.filter(x => (x.parent || null) === p); }
+function siblingsOf(t){ const p = t.parent || null; return S.teams.filter(x => (x.parent || null) === p && !!x.lead === !!t.lead); }
 function moveRow(t){
   const sib = siblingsOf(t), i = sib.indexOf(t);
   if(sib.length < 2) return '';
@@ -1007,10 +1037,10 @@ function teamCard(t){
         }).join('') + '</div>';
       }
       const blocked = [t.id].concat(descendants(t.id));
-      h += '<label class="rep">Reporta a<select data-rep="' + t.id + '">' +
+      if(!t.lead) h += '<label class="rep">Reporta a<select data-rep="' + t.id + '">' +
         '<option value="' + FLOAT + '"' + (floating ? ' selected' : '') + '>— Fuera de la tribu —</option>' +
         '<option value=""' + (t.parent == null ? ' selected' : '') + '>' + esc(S.tribe.lead || 'Líder de tribu') + '</option>' +
-        S.teams.filter(x => !blocked.includes(x.id)).map(x => '<option value="' + x.id + '"' + (x.id === t.parent ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('') +
+        S.teams.filter(x => !blocked.includes(x.id)).map(x => '<option value="' + x.id + '"' + (x.id === t.parent ? ' selected' : '') + '>' + esc(x.name) + (x.lead ? ' (otra estructura)' : '') + '</option>').join('') +
         '</select></label>';
       h += '<button class="toggle" data-act="toggle" data-tid="' + t.id + '">' + (exp ? 'Achicar' : 'Ver integrantes') + '</button>' +
         moveRow(t) + '</article>';
@@ -1110,19 +1140,21 @@ function personDialog(p, co){
     });
 }
 
-function teamDialog(t){
+function teamDialog(t, asLead){
   const isNew = !t;
-  t = t || {name:''};
+  t = t || {name:'', lead: !!asLead};
+  const lead = !!t.lead;
   const blocked = isNew ? [] : [t.id].concat(descendants(t.id));
   if(isNew) t.parent = FLOAT;
   const parentOpts = '<option value="' + FLOAT + '"' + (t.parent === FLOAT ? ' selected' : '') + '>— Fuera de la tribu (estructura aparte) —</option>' +
     '<option value=""' + (t.parent == null ? ' selected' : '') + '>' + esc(S.tribe.lead || 'Líder de tribu') + ' (directo)</option>' +
     S.teams.filter(x => !blocked.includes(x.id)).map(x =>
-      '<option value="' + x.id + '"' + (x.id === t.parent ? ' selected' : '') + '>' + '— '.repeat(depthOf(x)) + esc(x.name) + '</option>').join('');
-  openDialog(isNew ? 'Nuevo equipo' : 'Editar equipo',
-    '<label class="field">Nombre del equipo<input name="name" required value="' + esc(t.name) + '"></label>' +
-    '<label class="field">Reporta a<select name="parent">' + parentOpts + '</select></label>' +
-    (isNew ? '' : '<p class="note">Si eliminás el equipo, sus integrantes pasan a "Sin asignar" y los equipos que le reportan pasan a reportar a su superior.</p>') +
+      '<option value="' + x.id + '"' + (x.id === t.parent ? ' selected' : '') + '>' + '— '.repeat(depthOf(x)) + esc(x.name) + (x.lead ? ' (otra estructura)' : '') + '</option>').join('');
+  openDialog(lead ? (isNew ? 'Nueva estructura aparte' : 'Editar estructura aparte') : (isNew ? 'Nuevo equipo' : 'Editar equipo'),
+    '<label class="field">' + (lead ? 'Nombre (ej: B2B)' : 'Nombre del equipo') + '<input name="name" required value="' + esc(t.name) + '"></label>' +
+    (lead ? '<p class="note">Queda al mismo nivel que ' + esc(S.tribe.lead || 'el líder de tribu') + ', sin líder. Las personas y equipos que pongas ahí no cuentan en los totales, promedios ni alertas de esta estructura. Para sumarle equipos, elegila en "Reporta a" de cada equipo.</p>'
+      : '<label class="field">Reporta a<select name="parent">' + parentOpts + '</select></label>') +
+    (isNew ? '' : lead ? '<p class="note">Si la eliminás, su gente pasa a "Sin asignar" y sus equipos quedan sin ubicar.</p>' : '<p class="note">Si eliminás el equipo, sus integrantes pasan a "Sin asignar" y los equipos que le reportan pasan a reportar a su superior.</p>') +
     (isNew ? '' : '<label class="field">Posición<select name="pos">' + S.teams.map((x, i) => '<option value="' + i + '"' + (x.id === t.id ? ' selected' : '') + '>' + (i + 1) + '</option>').join('') + '</select></label>'),
     (isNew ? '' : '<button class="btn danger left" value="delete">Eliminar equipo</button>') +
     '<button class="btn" value="cancel" formnovalidate>Cancelar</button><button class="btn primary" value="ok">' + (isNew ? 'Crear' : 'Guardar') + '</button>',
@@ -1130,17 +1162,17 @@ function teamDialog(t){
       if(v === 'delete'){
         commit(() => {
           S.people.forEach(p => { if(p.team === t.id) p.team = UN; });
-          S.teams.forEach(x => { if(x.parent === t.id) x.parent = t.parent || null; });
+          S.teams.forEach(x => { if(x.parent === t.id) x.parent = lead ? FLOAT : (t.parent || null); });
           S.teams = S.teams.filter(x => x.id !== t.id);
         });
         toast('Equipo eliminado'); return;
       }
       const name = f.elements.name.value.trim(); if(!name) return false;
-      const parent = f.elements.parent.value || null;
+      const parent = lead ? null : (f.elements.parent.value || null);
       commit(() => {
-        if(isNew) S.teams.push({id:uid('t'), name, parent});
+        if(isNew) S.teams.push(lead ? {id:uid('t'), name, parent:null, lead:true} : {id:uid('t'), name, parent});
         else {
-          const cur = S.teams.find(x => x.id === t.id); cur.name = name; setParent(cur, parent);
+          const cur = S.teams.find(x => x.id === t.id); cur.name = name; if(!lead) setParent(cur, parent);
           const pos = +f.elements.pos.value, idx = S.teams.indexOf(cur);
           if(pos !== idx){ S.teams.splice(idx, 1); S.teams.splice(pos, 0, cur); }
         }
@@ -1271,6 +1303,7 @@ document.addEventListener('click', e => {
   else if(act === 'add-person') personDialog(null, el.dataset.co);
   else if(act === 'edit-team') teamDialog(S.teams.find(x => x.id === tid));
   else if(act === 'add-team') teamDialog(null);
+  else if(act === 'add-other') teamDialog(null, true);
   else if(act === 'settings') settingsDialog();
   else if(act === 'export') exportJson();
   else if(act === 'import-menu') importDialog();
