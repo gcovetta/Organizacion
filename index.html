@@ -1225,10 +1225,12 @@ function teamCard(t){
   if(isCompact(t)){
     const tot = kids.length ? subTotal : a.n;
     return '<article class="team compact' + (floating ? ' float' : '') + ((query || ofActive()) && !a.m.some(isHit) ? ' nohit' : '') + '" data-drop="' + t.id + '" aria-label="Equipo ' + esc(t.name) + ' (vista compacta)">' +
-      '<div class="cp-head"><h2>' + esc(t.name) + '</h2><div class="team-tools">' + noteBtn('team', t.id, t.name) +
+      '<div class="cp-head"><h2>' + esc(t.name) + '</h2><div class="team-tools">' +
+      (kids.length ? '<button class="mini" data-act="collapse" data-tid="' + t.id + '" aria-expanded="' + !col + '" aria-label="' + (col ? 'Desplegar' : 'Colapsar') + ' equipos de ' + esc(t.name) + '" title="' + (col ? 'Desplegar sus equipos' : 'Colapsar sus equipos') + '">' + (col ? ICON_DOWN : ICON_UP) + '</button>' : '') +
+      noteBtn('team', t.id, t.name) +
       '<button class="mini" data-act="edit-team" data-tid="' + t.id + '" aria-label="Editar equipo ' + esc(t.name) + '">' + ICON_EDIT + '</button>' +
       '<button class="mini" data-act="compact" data-tid="' + t.id + '" aria-label="Mostrar completo" title="Mostrar completo">' + ICON_EXPAND + '</button></div></div>' +
-      '<div class="cp-count"><b>' + tot + '</b> ' + (tot === 1 ? 'persona' : 'personas') + (kids.length ? ' <span>· ' + a.n + ' directas · ' + kids.length + (kids.length === 1 ? ' equipo' : ' equipos') + ' a cargo</span>' : '') + '</div>' +
+      '<div class="cp-count"><b>' + tot + '</b> ' + (tot === 1 ? 'persona' : 'personas') + (kids.length ? ' <span>· ' + a.n + ' directas · ' + kids.length + (kids.length === 1 ? ' equipo' : ' equipos') + ' a cargo' + (col ? ' (ocultos)' : '') + '</span>' : '') + '</div>' +
       moveRow(t) + '</article>';
   }
   let h = '' +
