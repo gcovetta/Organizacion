@@ -60,6 +60,7 @@ h1{margin:2px 0 0;font-size:30px;font-weight:800;letter-spacing:-.02em}
 .float-head .count{font-weight:800;font-size:13px;padding:2px 9px;border-radius:999px;background:#FFFFFF;color:#6B4E00}
 .float-panel .hint{margin:0;font-size:12px;color:#7A5D00;line-height:1.5}
 .float-list{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start}
+.float-panel{min-width:0;overflow:auto}
 .float-panel .team{width:320px;max-width:100%}
 .float-panel .team.wide{width:600px}
 .float-add{align-self:center}
@@ -1330,6 +1331,7 @@ try { const z = localStorage.getItem(KEY + '-zoom'); if(z && z !== 'auto'){ zoom
 function applyZoom(){
   const t = $('#tree');
   t.style.zoom = zoom;
+  const fl = document.querySelector('#floatPanel .float-list'); if(fl) fl.style.zoom = zoom;
   $('#zoomVal').textContent = Math.round(zoom * 100) + '%';
   const fb = document.querySelector('[data-act=zoom-fit]'); if(fb) fb.setAttribute('aria-pressed', autoFit ? 'true' : 'false');
 }
@@ -1348,9 +1350,9 @@ function fitZoom(){
   w.scrollLeft = 0;
 }
 // Shift + rueda = scroll horizontal; Ctrl/⌘ + rueda = zoom
-$('#treeWrap').addEventListener('wheel', e => {
+['#treeWrap', '#floatPanel'].forEach(sel => $(sel).addEventListener('wheel', e => {
   if(e.ctrlKey || e.metaKey){ e.preventDefault(); setZoom(zoom - Math.sign(e.deltaY) * 0.05); }
-}, {passive:false});
+}, {passive:false}));
 // al arrastrar una persona cerca del borde, la vista se desplaza sola
 let edgeTimer = null, edgeDx = 0;
 document.addEventListener('dragover', e => {
@@ -1363,10 +1365,11 @@ document.addEventListener('dragend', () => { edgeDx = 0; });
 
 // pellizco con trackpad en Safari
 let gBase = 1;
-const tw = $('#treeWrap');
-tw.addEventListener('gesturestart', e => { e.preventDefault(); gBase = zoom; });
-tw.addEventListener('gesturechange', e => { e.preventDefault(); setZoom(gBase * e.scale); });
-tw.addEventListener('gestureend', e => e.preventDefault());
+[$('#treeWrap'), $('#floatPanel')].forEach(tw => {
+  tw.addEventListener('gesturestart', e => { e.preventDefault(); gBase = zoom; });
+  tw.addEventListener('gesturechange', e => { e.preventDefault(); setZoom(gBase * e.scale); });
+  tw.addEventListener('gestureend', e => e.preventDefault());
+});
 let rzT;
 window.addEventListener('resize', () => { clearTimeout(rzT); rzT = setTimeout(() => { if(autoFit) fitZoom(); }, 120); });
 
