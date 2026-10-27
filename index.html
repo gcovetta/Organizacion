@@ -488,10 +488,16 @@ body.locked .drawer{display:none!important}
 .pf-badge{display:inline-block;margin-top:2px;font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;background:#123A4D;color:var(--accent)}
 :root:not([data-theme=dark]) .pf-badge{background:#ECEBFA}
 
-.pool.mira{flex-basis:100%;border-color:#E05A8A;background:#FCEAF1}
-.pool.mira .count{color:#8A1F47}
-[data-theme=dark] .pool.mira{background:#2A1424;border-color:#B04A78}
-[data-theme=dark] .pool.mira .count{color:#FF9CC4;background:var(--surface)}
+.pool.mira{flex-basis:100%;border-color:#D93636;background:#FDECEC}
+.pool.mira .count{color:#9B1C1C}
+.mira-title{display:inline-flex;align-items:center;gap:8px;color:#B42323}
+.pool.mira .chip{border-color:#D93636}
+[data-theme=dark] .pool.mira{background:#2A1216;border-color:#E5484D}
+[data-theme=dark] .pool.mira .count{color:#FF8A8A;background:var(--surface)}
+[data-theme=dark] .mira-title{color:#FF6B6B}
+[data-theme=dark] .pool.mira .chip{border-color:#E5484D}
+.stat.mira{background:#FDECEC}.stat.mira span{color:#9B1C1C}
+[data-theme=dark] .stat.mira{background:#2A1216}[data-theme=dark] .stat.mira span{color:#FF8A8A}
 </style>
 </head>
 <body>
@@ -1133,7 +1139,7 @@ function renderStats(){
     stat('Alertas', alerts, alerts > 0) +
     stat('De TMA', ourPeople().filter(p => p.company === EXT).length) +
     stat('Sin asignar', un, un > 0) +
-    stat('En la mira · no cuenta', membersOf(MIRA).length) +
+    '<div class="stat mira"><span>En la mira · no cuenta</span><span>' + membersOf(MIRA).length + '</span></div>' +
     stat('Parking lot · no cuenta', membersOf(PARK).length) +
     roleStats();
 }
@@ -1373,7 +1379,7 @@ function renderPool(){
       '<div class="pool-list">' + (m.length ? m.map(p => chip(p, true)).join('') : '<span class="hint">Vacío</span>') + '</div>';
   });
   const mi = membersOf(MIRA);
-  $('#poolMira').innerHTML = '<div class="pool-head"><h2>En la mira</h2><span class="count">' + mi.length + '</span>' +
+  $('#poolMira').innerHTML = '<div class="pool-head"><h2 class="mira-title"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1.5v5M12 17.5v5M1.5 12h5M17.5 12h5"/></svg>En la mira</h2><span class="count">' + mi.length + '</span>' +
     '<span class="hint">gente que estamos mirando sumar · no cuenta en la estructura</span>' +
     '<button class="btn pool-add" data-act="add-person" data-team="' + MIRA + '">+ Persona en la mira</button></div>' +
     '<div class="pool-list">' + (mi.length ? mi.map(p => chip(p, true)).join('') : '<span class="hint">Vacío · arrastrá gente acá o agregala con el botón</span>') + '</div>';
