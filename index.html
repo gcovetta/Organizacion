@@ -349,6 +349,11 @@ body.locked .drawer{display:none!important}
 .db-x{all:unset;cursor:pointer;color:var(--muted);font-size:11px;padding:0 6px 0 0}
 .db-x:hover{color:var(--warn)}
 .db-x:focus-visible{outline:2px solid var(--accent)}
+
+.db-filters{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;background:var(--surface);border-radius:12px;padding:12px 14px;margin-bottom:16px}
+.db-filters label{display:flex;flex-direction:column;gap:2px;font-size:11px;font-weight:700;color:var(--muted)}
+.db-filters select,.db-filters input{height:34px;border:1px solid var(--line);border-radius:8px;padding:0 8px;background:var(--surface);color:var(--ink);font:inherit;font-size:13px;max-width:200px}
+.db-filters input{width:220px}
 </style>
 </head>
 <body>
@@ -1310,10 +1315,45 @@ $('#listView').addEventListener('keydown', e => {
 $('#listView').addEventListener('focusout', () => { if(LV.pending) setTimeout(() => { const ae = document.activeElement; if(!(ae && ae.closest && ae.closest('#listView tbody') && ae.tagName === 'INPUT')){ LV.pending = false; renderList(); } }, 0); });
 
 /* ---------- tablero de equilibrio de roles ---------- */
-const DB_V = {open:false};
+const DB_V = {open:false, f:{}};
+const DB_FIELDS = [
+  ['team', 'Equipo (con sub-equipos)'], ['company', 'Compañía'], ['vendor', 'Proveedor'], ['spec', 'Especialidad'],
+  ['skill', 'Skill'], ['title', 'Puesto'], ['manager', 'Jefe directo']
+];
+function dbFieldVal(p, k){
+  if(k === 'skill') return skillOf(p) ? String(skillOf(p)) : '';
+  if(k === 'company') return p.company || HOME;
+  return (p[k] || '').trim();
+}
+function dbPass(p){
+  const f = DB_V.f;
+  for(const [k] of DB_FIELDS){
+    if(k === 'team' || f[k] == null || f[k] === '') continue;
+    if(dbFieldVal(p, k) !== (f[k] === '∅' ? '' : f[k])) return false;
+  }
+  if(f.q){ const q = f.q.toLowerCase(); if(![p.name, p.title, p.manager, p.spec, p.vendor, role(p.role).label].some(x => (x || '').toLowerCase().includes(q))) return false; }
+  return true;
+}
+function dbFilterBar(){
+  const f = DB_V.f, pool = ourPeople().filter(p => p.team !== UN);
+  const opt = (k) => {
+    if(k === 'team') return ourTeams().map(t => [t.id, '— '.repeat(depthOf(t)) + t.name]);
+    if(k === 'skill') return ['1','2','3','4','5','∅'].map(v => [v, v === '∅' ? 'Sin evaluar' : v]);
+    if(k === 'company') return COMPANIES.map(c => [c, c]);
+    const vals = [...new Set(pool.map(p => dbFieldVal(p, k)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+    return vals.map(v => [v, v]).concat(pool.some(p => !dbFieldVal(p, k)) ? [['∅', '(vacío)']] : []);
+  };
+  const active = Object.keys(f).filter(k => f[k]).length;
+  return '<div class="db-filters" aria-label="Filtros del tablero">' +
+    '<input type="search" data-dbf="q" placeholder="Buscar persona, rol, puesto…" value="' + esc(f.q || '') + '" aria-label="Buscar">' +
+    DB_FIELDS.map(([k, l]) => '<label><span>' + l + '</span><select data-dbf="' + k + '"><option value="">Todos</option>' +
+      opt(k).map(([v, t]) => '<option value="' + esc(v) + '"' + (f[k] === v ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '</select></label>').join('') +
+    (active ? '<button class="btn" data-act="dash-clear">Limpiar filtros (' + active + ')</button>' : '') + '</div>';
+}
 function dbData(){
   // solo nuestra estructura: equipos propios con gente; fuera B2B, parking lot y sin asignar
-  const teams = ourTeams().map(t => ({t, m: membersOf(t.id)})).filter(x => x.m.length);
+  const branch = DB_V.f.team ? [DB_V.f.team].concat(descendants(DB_V.f.team)) : null;
+  const teams = ourTeams().filter(t => !branch || branch.includes(t.id)).map(t => ({t, m: membersOf(t.id).filter(dbPass)})).filter(x => x.m.length);
   const hidden = dbHidden();
   teams.forEach(x => { x.m = x.m.filter(p => !hidden.includes(p.role)); });
   const used = new Set(); teams.forEach(x => x.m.forEach(p => used.add(p.role)));
@@ -1349,7 +1389,8 @@ function renderDash(){
   $('#dbBar').innerHTML = '<h2>Tablero · equilibrio de roles</h2><span class="count">' + rows.length + ' equipos · ' + N + ' personas (sin B2B, parking lot ni sin asignar)</span>' +
     '<span class="db-roles">Roles:' + S.roles.map(r => '<label title="' + (hid.includes(r.id) ? 'Oculto: no se cuenta en el tablero' : 'Se cuenta en el tablero') + '"><input type="checkbox" data-dbrole="' + esc(r.id) + '"' + (hid.includes(r.id) ? '' : ' checked') + '><span style="background:' + esc(r.color) + '"></span>' + esc(r.short) + '</label>').join('') + '</span>' +
     '<button class="btn lv-close" data-act="dash-close">Cerrar</button>';
-  if(!rows.length){ $('#dbBody').innerHTML = '<div class="lv-empty">Todavía no hay equipos con gente para analizar.</div>'; return; }
+  const fbar = dbFilterBar();
+  if(!rows.length){ $('#dbBody').innerHTML = fbar + '<div class="lv-empty">' + (Object.keys(DB_V.f).some(k => DB_V.f[k]) ? 'Nadie cumple esos filtros.' : 'Todavía no hay equipos con gente para analizar.') + '</div>'; return; }
   // A · indicadores
   const bal = Math.round(rows.reduce((a, r) => a + r.idx, 0) / rows.length);
   const unbal = rows.filter(r => r.idx < 70);
@@ -1357,7 +1398,7 @@ function renderDash(){
   const pres = roles.map((r, i) => [r, rows.filter(x => x.cells[i].v).length]).sort((a, b) => a[1] - b[1] || b[0].label.localeCompare(a[0].label));
   const conc = pres.find(x => tot[roles.indexOf(x[0])] > 1) || pres[0];
   const kpi = (l, val, sub, warn, title) => '<div class="db-kpi' + (warn ? ' warn' : '') + '"' + (title ? ' title="' + esc(title) + '"' : '') + '><span>' + l + '</span><b>' + val + '</b><small>' + sub + '</small></div>';
-  let h = '<section class="db-sec"><h3>A · Indicadores de equilibrio</h3><p class="note">El índice compara la mezcla de roles de cada equipo con la mezcla promedio de la tribu: 100 = misma proporción.</p><div class="db-kpis">' +
+  let h = fbar + '<section class="db-sec"><h3>A · Indicadores de equilibrio</h3><p class="note">El índice compara la mezcla de roles de cada equipo con la mezcla promedio de la tribu: 100 = misma proporción.</p><div class="db-kpis">' +
     kpi('Índice de equilibrio', bal + '/100', 'promedio de los equipos', bal < 70) +
     kpi('Equipos desbalanceados', unbal.length + ' de ' + rows.length, 'índice menor a 70', unbal.length > 0, unbal.map(r => r.t.name).join(', ')) +
     kpi('Equipos sin ' + leadName, leadIds.length ? noLead.length : '—', leadIds.length ? 'rol clave faltante' : 'marcá el rol líder en Configuración', noLead.length > 0, noLead.map(r => r.t.name).join(', ')) +
@@ -1387,9 +1428,16 @@ function renderDash(){
   $('#dbBody').innerHTML = h;
 }
 $('#dashView').addEventListener('change', e => {
+  const fk = e.target.dataset && e.target.dataset.dbf;
+  if(fk && fk !== 'q'){ DB_V.f[fk] = e.target.value; renderDash(); const el = $('#dashView [data-dbf="' + fk + '"]'); if(el) el.focus(); return; }
   const id = e.target.dataset && e.target.dataset.dbrole; if(id == null) return;
   const cur = dbHidden().slice();
   commit(() => { S.settings.dashHide = e.target.checked ? cur.filter(x => x !== id) : cur.concat(id); });
+});
+$('#dashView').addEventListener('input', e => {
+  if(!(e.target.dataset && e.target.dataset.dbf === 'q')) return;
+  DB_V.f.q = e.target.value; const pos = e.target.selectionStart; renderDash();
+  const el = $('#dashView [data-dbf="q"]'); if(el){ el.focus(); try { el.setSelectionRange(pos, pos); } catch(_){} }
 });
 $('#dashView').addEventListener('keydown', e => { if(e.key === 'Escape' && !dlg.open){ DB_V.open = false; renderDash(); } });
 
@@ -1622,6 +1670,7 @@ document.addEventListener('click', e => {
   else if(act === 'dash-open'){ DB_V.open = true; renderDash(); $('#dashView').focus(); }
   else if(act === 'dash-hide-c'){ const cur = dbHiddenC().slice(); commit(() => { S.settings.dashHideC = cur.concat(el.dataset.tid); }); }
   else if(act === 'dash-show-c'){ const cur = dbHiddenC().slice(); commit(() => { S.settings.dashHideC = cur.filter(x => x !== el.dataset.tid); }); }
+  else if(act === 'dash-clear'){ DB_V.f = {}; renderDash(); }
   else if(act === 'dash-close'){ DB_V.open = false; renderDash(); }
   else if(act === 'dash-cell'){ LV.fTeam = el.dataset.tid; LV.fRole = el.dataset.rid; LV.filter = 'all'; LV.q = ''; LV.open = true; LV.back = true; DB_V.open = false; renderDash(); renderList(); }
   else if(act === 'list-sort'){ const k = el.dataset.k; if(LV.sort === k) LV.dir = -LV.dir; else { LV.sort = k; LV.dir = 1; } renderList(); }
