@@ -268,6 +268,13 @@ body.locked .drawer{display:none!important}
 .root.other-root{background:#3F4152}
 .root.other-root .av{background:#8A8AA0}
 .add-other{margin-top:28px}
+
+/* ---- personas por rol ---- */
+.role-stats{flex-basis:100%;display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px;color:var(--muted)}
+.role-stats .rs-title{font-weight:700;margin-right:2px}
+.role-stat{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:var(--surface);color:var(--ink);font-weight:600}
+.role-stat i{width:10px;height:10px;border-radius:3px}
+.role-stat b{font-weight:800}
 </style>
 </head>
 <body>
@@ -877,12 +884,23 @@ function renderStats(){
     stat('Sobre el máximo (' + S.settings.maxSize + ')', over, over > 0) +
     stat('Alertas', alerts, alerts > 0) +
     stat('De TMA', ourPeople().filter(p => p.company === EXT).length) +
-    stat('Sin asignar', un, un > 0);
+    stat('Sin asignar', un, un > 0) +
+    roleStats();
+}
+function roleStats(){
+  const ppl = ourPeople(), cnt = {};
+  ppl.forEach(p => cnt[p.role] = (cnt[p.role] || 0) + 1);
+  const list = S.roles.filter(r => cnt[r.id]).map(r => [r.label, r.color, cnt[r.id]]);
+  const rest = Object.keys(cnt).filter(k => !S.roles.some(r => r.id === k)).reduce((a, k) => a + cnt[k], 0);
+  if(rest) list.push(['Sin rol', '#9A9AAE', rest]);
+  if(!list.length) return '';
+  return '<div class="role-stats" aria-label="Personas por rol"><span class="rs-title">Por rol:</span>' +
+    list.map(([l, c, n]) => '<span class="role-stat"><i style="background:' + esc(c) + '"></i>' + esc(l) + ' <b>' + n + '</b></span>').join('') + '</div>';
 }
 
 function renderLegend(){
   const totals = {};
-  S.people.forEach(p => totals[p.role] = (totals[p.role] || 0) + 1);
+  ourPeople().forEach(p => totals[p.role] = (totals[p.role] || 0) + 1);
   $('#legend').innerHTML =
     '<span class="co-legend"><i style="border-color:var(--co-home)"></i>Personal</span>' +
     '<span class="co-legend"><i style="border-color:var(--co-ext)"></i>TMA</span>' +
