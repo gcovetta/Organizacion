@@ -518,6 +518,18 @@ body.locked .drawer{display:none!important}
 [data-theme=dark] .flag-tag{background:#4A2E10;color:#FFB45E}
 .face.flagged::before{content:"!";position:absolute;left:-5px;bottom:-5px;width:14px;height:14px;border-radius:50%;background:#FF9A3D;color:#1A0E00;font-size:10px;font-weight:900;line-height:14px;text-align:center;border:2px solid var(--surface)}
 .lv-table .flag-cell input{background:var(--warn-bg);color:var(--warn);font-weight:700}
+/* ---- columna izquierda: sin asignar, en la mira, parking ---- */
+.layout{display:flex;align-items:flex-start;padding-left:32px}
+.layout .board{flex:1 1 auto;min-width:0;padding-left:20px}
+.layout .pools{flex:0 0 340px;flex-direction:column;flex-wrap:nowrap;margin:0;position:sticky;top:16px;max-height:calc(100vh - 32px);overflow:auto;padding-bottom:16px}
+.layout .pools .pool{flex:0 0 auto;margin:0}
+body.locked .layout{display:none!important}
+@media (max-width:900px){.layout{flex-direction:column;align-items:stretch;padding-left:0}.layout .board{padding-left:32px}.layout .pools{flex:none;order:2;position:static;max-height:none;overflow:visible;margin:0 32px 40px}}
+@media (max-width:640px){.layout .board{padding-left:16px}.layout .pools{margin:0 16px 32px}}
+/* ---- grupo "No suman" en el resumen ---- */
+.stat-group{display:flex;flex-direction:column;gap:6px;padding:6px 8px 8px;border:2px dashed #C9CBD8;border-radius:14px}
+.stat-group-label{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding:0 6px}
+.stat-group-row{display:flex;flex-wrap:wrap;gap:8px}
 </style>
 </head>
 <body>
@@ -585,19 +597,20 @@ body.locked .drawer{display:none!important}
   <div class="legend" id="legend"></div>
 </div>
 
-<div class="board">
-  <div class="tree-wrap" id="treeWrap">
-    <div class="tree" id="tree"></div>
-  </div>
-  <aside class="float-panel" id="floatPanel" aria-label="Equipos sin ubicar"></aside>
-</div>
-
+<div class="layout">
 <div class="pools">
   <section class="pool" id="poolHome" data-drop="u" data-co="Personal" aria-label="Sin asignar de Personal"></section>
   <section class="pool ext" id="poolExt" data-drop="u" data-co="TMA" aria-label="Sin asignar de TMA"></section>
   <section class="pool third" id="poolThird" data-drop="u" data-co="Terceros" aria-label="Sin asignar de terceros"></section>
   <section class="pool mira" id="poolMira" data-drop="mira" aria-label="En la mira"></section>
   <section class="pool park" id="poolPark" data-drop="park" aria-label="Parking lot"></section>
+</div>
+<div class="board">
+  <div class="tree-wrap" id="treeWrap">
+    <div class="tree" id="tree"></div>
+  </div>
+  <aside class="float-panel" id="floatPanel" aria-label="Equipos sin ubicar"></aside>
+</div>
 </div>
 
 <section class="list-view" id="listView" hidden aria-label="Lista de personas">
@@ -1192,7 +1205,10 @@ function renderStats(){
     stat('De TMA', ourPeople().filter(p => p.company === EXT).length) +
     stat('Sin asignar', un, un > 0) +
     (S.people.some(p => p.flag) ? stat('Para revisar', S.people.filter(p => p.flag).length, true, 'Personas con alerta. Tocá para verlas en la lista.', 'flag-list') : '') +
-    '<div class="stat mira"><span>En la mira · no cuenta</span><span>' + membersOf(MIRA).length + '</span></div>' +
+    '<div class="stat-group" role="group" aria-label="No suman"><span class="stat-group-label">No suman</span><div class="stat-group-row">' +
+      '<div class="stat mira"><span>En la mira</span><span>' + membersOf(MIRA).length + '</span></div>' +
+      stat('Variación Organizacional', S.people.filter(p => isOutside(p.team)).length, false, 'Personas en las estructuras aparte (a la derecha del organigrama, p. ej. B2B).') +
+    '</div></div>' +
     stat('Parking lot · no cuenta', membersOf(PARK).length) +
     roleStats();
 }
