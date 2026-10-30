@@ -589,6 +589,9 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none!impor
 .move-all > span{font-weight:700;font-size:13px}
 .move-all-row{display:flex;gap:8px}
 .move-all-row select{flex:1 1 auto;min-width:0}
+/* sin barra de desplazamiento horizontal: el organigrama se mueve arrastrando con el mouse o con Shift + rueda */
+.tree-wrap::-webkit-scrollbar:horizontal{height:0;display:none}
+body{overflow-x:clip}
 </style>
 </head>
 <body>
