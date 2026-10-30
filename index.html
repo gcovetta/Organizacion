@@ -632,6 +632,12 @@ body{overflow-x:clip}
 .db-hm td.c.has-nb{padding-left:22px}
 .hm-mira{position:absolute;bottom:2px;left:3px;display:inline-flex;align-items:center;gap:2px;font-size:10px;font-weight:800;color:#E5484D;line-height:1}
 .hm-accepted .hm-mira,.hm-ok .hm-mira{color:#D93636}
+/* ---- marca manual de desvío en la matriz ---- */
+.hm-flag-btn{position:absolute;bottom:2px;right:2px;width:16px;height:16px;padding:0;border:none;border-radius:50%;background:transparent;color:inherit;opacity:0;cursor:pointer;font:inherit;font-size:11px;font-weight:900;line-height:16px;text-align:center}
+.db-hm td.c:hover .hm-flag-btn,.hm-flag-btn:focus-visible{opacity:.55}
+.hm-flag-btn.on,.db-hm td.c:hover .hm-flag-btn.on{opacity:1;background:#F59E0B;color:#1A1300}
+.db-hm td.c.hm-flagged{box-shadow:inset 0 0 0 3px #F59E0B}
+@media (hover:none){.hm-flag-btn{opacity:.4}}
 </style>
 </head>
 <body>
@@ -1935,6 +1941,9 @@ function dbHidden(){
   return S.roles.filter(r => /^ger/i.test(r.short || '') || /^gerent/i.test(r.label || '')).map(r => r.id);
 }
 // celdas de la matriz que alguien marcó como "está bien así" (compartido): {'tid::rid': email}
+// celdas marcadas a mano como desvío (llamado de atención), compartido: {'tid::rid': email}
+function hmFlagged(tid, rid){ return !!((S.settings.hmFlag || {})[tid + '::' + rid]); }
+function hmFlaggedBy(tid, rid){ const v = (S.settings.hmFlag || {})[tid + '::' + rid]; return typeof v === 'string' ? shortName(v) : 'alguien'; }
 function hmAccepted(tid, rid){ return !!((S.settings.hmOk || {})[tid + '::' + rid]); }
 function hmAcceptedBy(tid, rid){ const v = (S.settings.hmOk || {})[tid + '::' + rid]; return typeof v === 'string' ? shortName(v) : 'alguien'; }
 function renderDash(){
@@ -1961,6 +1970,8 @@ function renderDash(){
     kpi('Índice de equilibrio', bal + '/100', 'promedio de los equipos', bal < 70) +
     kpi('Equipos desbalanceados', unbal.length + ' de ' + rows.length, unbal.filter(r => r.multi).length + ' multi-rol · ' + unbal.filter(r => !r.multi).length + ' específicos', unbal.length > 0, unbal.map(r => r.t.name + ': ' + r.why).join('\n')) +
     kpi('Equipos sin ' + leadName, leadIds.length ? noLead.length : '—', leadIds.length ? 'rol clave faltante' : 'marcá el rol líder en Configuración', noLead.length > 0, noLead.map(r => r.t.name).join(', ')) +
+    (() => { const ks = Object.keys(S.settings.hmFlag || {}).filter(k => rows.some(r => k.startsWith(r.t.id + '::')));
+      return ks.length ? kpi('Marcados como desvío', ks.length, 'celdas de la matriz con llamado de atención', true, ks.map(k => targetName('team', k)).join('\n')) : ''; })() +
     (conc ? kpi('Rol más concentrado', esc(conc[0].label), 'presente en ' + conc[1] + ' de ' + rows.length + ' equipos', false) : '') +
     '</div></section>';
   // B · matriz
@@ -1975,7 +1986,7 @@ function renderDash(){
     if(c.d <= -1) return 'hm-under';
     return 'hm-ok';
   };
-  h += '<section class="db-sec"><h3>B · Matriz equipo × rol</h3><p class="note">Cantidad de personas por rol. En los multi-rol el color compara con lo esperado según la mezcla multi-rol; en los específicos marca lo que queda fuera de su rol principal. Tocá el tipo para cambiarlo y una celda para ver esas personas. Cada celda tiene un globito para comentar. En las que tienen alerta, el ✓ la marca como bien y deja de figurar en rojo.</p>'+(hasMulti ? '' : '<p class="note" style="color:var(--warn)">Ningún equipo visible es multi-rol: la referencia es el total.</p>')+'' +
+  h += '<section class="db-sec"><h3>B · Matriz equipo × rol</h3><p class="note">Cantidad de personas por rol. En los multi-rol el color compara con lo esperado según la mezcla multi-rol; en los específicos marca lo que queda fuera de su rol principal. Tocá el tipo para cambiarlo y una celda para ver esas personas. Cada celda tiene un globito para comentar y un ! (abajo a la derecha) para marcarla como desvío. En las que tienen alerta, el ✓ la marca como bien y deja de figurar en rojo.</p>'+(hasMulti ? '' : '<p class="note" style="color:var(--warn)">Ningún equipo visible es multi-rol: la referencia es el total.</p>')+'' +
     '<div class="db-leg"><span><i class="hm-over"></i>Sobra (1 o más sobre lo esperado)</span><span><i class="hm-ok"></i>En línea</span><span><i class="hm-under"></i>Falta</span><span><i class="hm-off"></i>Fuera del foco (equipo específico)</span>' + (leadIds.length ? '<span><i class="hm-nolead"></i>Sin ' + esc(leadName) + '</span>' : '') + '</div>' +
     '<div class="db-hm-wrap"><table class="db-hm"><thead><tr><th class="t">Equipo</th><th>Tipo</th>' + roles.map(r => '<th title="' + esc(r.label) + '"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:' + esc(r.color) + ';margin-right:4px"></span>' + esc(r.short) + '</th>').join('') + '<th>Total</th><th>Índice</th></tr></thead><tbody>' +
     rows.map(r => '<tr><td class="t">' + esc(r.t.name) + '</td><td><button class="db-type' + (r.multi ? ' multi' : '') + '" data-act="dash-type" data-tid="' + r.t.id + '" title="Tocá para cambiar a ' + (r.multi ? 'específico' : 'multi-rol') + '">' + (r.multi ? 'Multi-rol' : 'Específico') + '</button></td>' + r.cells.map((c, i) => { const hc = col(c, i, r);
@@ -1985,7 +1996,9 @@ function renderDash(){
         const cb = alert ? '<button class="hm-check' + (ok ? ' on' : '') + '" data-act="hm-accept" data-nid="' + esc(nid) + '" aria-pressed="' + ok + '" title="' + (ok ? 'Marcado como bien por ' + esc(hmAcceptedBy(r.t.id, roles[i].id)) + ' · tocá para volver a mostrar la alerta' : 'Está bien así: dejar de marcarlo como alerta') + '" aria-label="' + (ok ? 'Volver a mostrar la alerta de ' : 'Marcar como bien ') + esc(r.t.name + ' · ' + roles[i].label) + '">✓</button>' : '';
         const nm = membersOf(r.t.id).filter(p => p.role === roles[i].id && p.mira).length;
         const mb = nm ? '<span class="hm-mira" title="' + nm + (nm === 1 ? ' persona marcada' : ' personas marcadas') + ' En la mira">' + ICON_MIRA + '<b>' + nm + '</b></span>' : '';
-        return '<td class="c ' + (ok ? 'hm-ok hm-accepted' : hc) + ' has-nb" data-act="dash-cell" data-tid="' + r.t.id + '" data-rid="' + esc(roles[i].id) + '" title="' + esc(tip + (ok ? ' · marcado como bien' : '') + (nm ? ' · ' + nm + ' en la mira' : '')) + '">' + cb + c.v + nb + mb + '</td>'; }).join('') +
+        const fl = hmFlagged(r.t.id, roles[i].id);
+        const fb = '<button class="hm-flag-btn' + (fl ? ' on' : '') + '" data-act="hm-flag" data-nid="' + esc(nid) + '" aria-pressed="' + fl + '" title="' + (fl ? 'Marcado como desvío por ' + esc(hmFlaggedBy(r.t.id, roles[i].id)) + ' · tocá para quitar la marca' : 'Marcar como desvío (llamado de atención)') + '" aria-label="' + (fl ? 'Quitar marca de desvío de ' : 'Marcar como desvío ') + esc(r.t.name + ' · ' + roles[i].label) + '">!</button>';
+        return '<td class="c ' + (ok ? 'hm-ok hm-accepted' : hc) + (fl ? ' hm-flagged' : '') + ' has-nb" data-act="dash-cell" data-tid="' + r.t.id + '" data-rid="' + esc(roles[i].id) + '" title="' + esc(tip + (ok ? ' · marcado como bien' : '') + (nm ? ' · ' + nm + ' en la mira' : '') + (fl ? ' · ⚠ marcado como desvío' : '')) + '">' + cb + c.v + nb + mb + fb + '</td>'; }).join('') +
       '<td class="muted">' + r.n + '</td><td style="font-weight:800;color:' + (r.idx < 70 ? 'var(--warn)' : 'var(--muted)') + '" title="' + esc(r.multi ? 'Parecido a la mezcla multi-rol' : 'Foco en ' + (r.main ? r.main.label : '—')) + '">' + r.idx + '</td></tr>').join('') +
     '<tr><td class="t muted">Tribu</td><td></td>' + tot.map(v => '<td class="muted">' + v + '</td>').join('') + '<td class="muted">' + N + '</td><td></td></tr></tbody></table></div></section>';
   // C · composición
@@ -2511,6 +2524,7 @@ document.addEventListener('click', e => {
   else if(act === 'import-menu') importDialog();
   else if(act === 'undo') undo();
   else if(act === 'notes') openNotes(el.dataset.ntype, el.dataset.nid);
+  else if(act === 'hm-flag'){ const k = el.dataset.nid; commit(() => { const m = Object.assign({}, S.settings.hmFlag || {}); if(m[k]) delete m[k]; else m[k] = myEmail || true; S.settings.hmFlag = m; }); toast(hmFlagged(...k.split('::')) ? '⚠ Marcado como desvío' : 'Marca de desvío quitada'); }
   else if(act === 'hm-accept'){ const k = el.dataset.nid; commit(() => { const m = Object.assign({}, S.settings.hmOk || {}); if(m[k]) delete m[k]; else m[k] = myEmail || true; S.settings.hmOk = m; }); toast(hmAccepted(...k.split('::')) ? 'Marcado como bien · ya no figura como alerta' : 'La alerta vuelve a mostrarse'); }
   else if(act === 'move-left') moveTeam(tid, -1);
   else if(act === 'move-right') moveTeam(tid, 1);
