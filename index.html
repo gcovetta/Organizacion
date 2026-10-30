@@ -1570,14 +1570,14 @@ function groupedList(pk, m, drop, co){
 }
 function pgroupDialog(pk, gi){
   const gs = pgroups(pk), isNew = gi == null, old = isNew ? '' : gs[gi];
-  const where = pk === 'tma' ? 'TMA · sin asignar' : 'TMA en duda';
+  const where = pk === 'tma' ? 'TMA · sin asignar' : pk === 'per' ? 'Sin asignar · Personal' : 'TMA en duda';
   openDialog(isNew ? 'Nuevo grupo en ' + where : 'Grupo "' + old + '"',
     '<label class="field">Nombre del grupo<input name="g" required maxlength="60" value="' + esc(old) + '" placeholder="Ej: DBA, Networking, SO"></label>' +
     (isNew ? '' : '<p class="note">Si lo eliminás, sus personas quedan en "Sin grupo" (siguen en ' + where + ').</p>'),
     (isNew ? '' : '<button class="btn danger" value="del" formnovalidate>Eliminar grupo</button>') +
     '<button class="btn" value="cancel" formnovalidate>Cancelar</button><button class="btn primary" value="ok">' + (isNew ? 'Crear' : 'Guardar') + '</button>',
     (f, v) => {
-      const inPool = p => pk === 'tma' ? (p.team === UN && (p.company || HOME) === EXT) : p.team === DUDA;
+      const inPool = p => pk === 'tma' ? (p.team === UN && (p.company || HOME) === EXT) : pk === 'per' ? (p.team === UN && (p.company || HOME) === HOME) : p.team === DUDA;
       if(v === 'del'){
         commit(() => { const all = Object.assign({}, S.settings.pgroups || {}); all[pk] = gs.filter((_, i) => i !== gi); S.settings.pgroups = all;
           S.people.forEach(p => { if(inPool(p) && p.pgrp === old) delete p.pgrp; }); });
@@ -1596,7 +1596,7 @@ function renderPool(){
     $(sel).innerHTML = '<div class="pool-head"><h2>' + title + '</h2><span class="count">' + m.length + '</span>' +
       '<span class="hint">' + (co === EXT ? 'personas que vienen de TMA · arrastralas a un equipo' : co === THIRD ? 'personas de proveedores · cuentan en los equipos, arriba van aparte' : 'arrastrá a un equipo') + '</span>' +
       '<button class="btn pool-add" data-act="add-person" data-co="' + co + '">+ Persona' + (co === EXT ? ' de TMA' : co === THIRD ? ' de tercero' : '') + '</button></div>' +
-      (co === EXT ? groupedList('tma', m, 'u', EXT) : '<div class="pool-list">' + (m.length ? m.map(p => chip(p, true)).join('') : '<span class="hint">Vacío</span>') + '</div>');
+      (co === EXT ? groupedList('tma', m, 'u', EXT) : co === HOME ? groupedList('per', m, 'u', HOME) : '<div class="pool-list">' + (m.length ? m.map(p => chip(p, true)).join('') : '<span class="hint">Vacío</span>') + '</div>');
   });
   [['#poolBaja', BAJA, 'Personal bajas', HOME, '+ Baja de Personal'], ['#poolDuda', DUDA, 'TMA en duda', EXT, '+ Persona de TMA en duda']].forEach(([sel, tid, title, co, btn]) => {
     const m = membersOf(tid);
@@ -2114,7 +2114,8 @@ function moveDests(t){
   o.push(['pool|u|' + EXT + '|', 'TMA · sin asignar (sin grupo)']);
   dudaG.forEach(g => o.push(['pool|' + DUDA + '||' + g, 'TMA en duda › ' + g]));
   o.push(['pool|' + DUDA + '||', 'TMA en duda (sin grupo)']);
-  o.push(['pool|u|' + HOME + '|', 'Sin asignar · Personal']);
+  pgroups('per').forEach(g => o.push(['pool|u|' + HOME + '|' + g, 'Sin asignar · Personal › ' + g]));
+  o.push(['pool|u|' + HOME + '|', 'Sin asignar · Personal' + (pgroups('per').length ? ' (sin grupo)' : '')]);
   o.push(['pool|' + MIRA + '||', 'En la mira']);
   o.push(['pool|' + PARK + '||', 'Parking lot']);
   S.teams.filter(x => x.id !== t.id).forEach(x => o.push(['team|' + x.id, 'Equipo: ' + x.name]));
