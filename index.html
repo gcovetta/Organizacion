@@ -541,6 +541,10 @@ body.locked .layout{display:none!important}
 [data-theme=dark] .pool.duda,[data-theme=dark] .stat.duda{background:#2A2110}
 [data-theme=dark] .stat.baja span,[data-theme=dark] .pool.baja .count{color:#C9CBD8}
 [data-theme=dark] .stat.duda span,[data-theme=dark] .pool.duda .count{color:#F2C46B}
+/* ---- otras estructuras / sin ubicar en la columna izquierda ---- */
+.layout .pools .float-panel{flex:0 0 auto}
+.layout .pools .float-panel .team,.layout .pools .float-panel .team.wide{width:100%}
+.layout .pools .float-list{flex-direction:column;flex-wrap:nowrap;align-items:stretch}
 </style>
 </head>
 <body>
@@ -617,12 +621,12 @@ body.locked .layout{display:none!important}
   <section class="pool duda" id="poolDuda" data-drop="duda" aria-label="TMA en duda"></section>
   <section class="pool mira" id="poolMira" data-drop="mira" aria-label="En la mira"></section>
   <section class="pool park" id="poolPark" data-drop="park" aria-label="Parking lot"></section>
+  <aside class="float-panel" id="floatPanel" aria-label="Equipos sin ubicar"></aside>
 </div>
 <div class="board">
   <div class="tree-wrap" id="treeWrap">
     <div class="tree" id="tree"></div>
   </div>
-  <aside class="float-panel" id="floatPanel" aria-label="Equipos sin ubicar"></aside>
 </div>
 </div>
 
@@ -1223,13 +1227,11 @@ function renderStats(){
     (S.people.some(p => p.flag) ? stat('Para revisar', S.people.filter(p => p.flag).length, true, 'Personas con alerta. Tocá para verlas en la lista.', 'flag-list') : '') +
     '<div class="stat-group" role="group" aria-label="No suman"><span class="stat-group-label">No suman</span><div class="stat-group-row">' +
       '<div class="stat mira"><span>En la mira</span><span>' + membersOf(MIRA).length + '</span></div>' +
-      stat('Variación Organizacional', S.people.filter(p => isOutside(p.team)).length, false, 'Personas en las estructuras aparte (a la derecha del organigrama, p. ej. B2B).') +
-    '</div></div>' +
-    '<div class="stat-group" role="group" aria-label="Bajas y dudas"><span class="stat-group-label">Bajas y dudas · no suman a MCH</span><div class="stat-group-row">' +
+      stat('VO - B2B', S.people.filter(p => isOutside(p.team)).length, false, 'Variación organizacional: personas en las estructuras aparte (a la derecha del organigrama, p. ej. B2B).') +
+      stat('Parking lot', membersOf(PARK).length) +
       '<div class="stat baja"><span>Personal bajas</span><span>' + membersOf(BAJA).length + '</span></div>' +
       '<div class="stat duda"><span>TMA en duda</span><span>' + membersOf(DUDA).length + '</span></div>' +
     '</div></div>' +
-    stat('Parking lot · no cuenta', membersOf(PARK).length) +
     roleStats();
 }
 function roleStats(){
