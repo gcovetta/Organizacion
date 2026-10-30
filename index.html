@@ -608,6 +608,17 @@ body{overflow-x:clip}
 .direct-node{padding:10px 16px;border-radius:12px;border:2px solid var(--co-home);background:var(--surface);color:var(--ink);font:inherit;font-weight:800;font-size:14px;cursor:grab;white-space:nowrap}
 .direct-node.ext{border-color:var(--co-ext)}.direct-node.third{border-color:var(--co-3p)}
 .root.drop{outline:3px solid var(--accent);outline-offset:3px}
+/* ---- marcadas "En la mira" (copia que sigue contando en su equipo) ---- */
+.stat.mira .mira-sub{font-size:11px;font-weight:700;opacity:.85}
+.mira-marked{display:flex;flex-direction:column;gap:8px;padding-top:10px;border-top:1.5px dashed rgba(217,54,54,.4)}
+.mira-marked-head{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;color:#B42323}
+.mira-marked-head .count{font-size:12px;padding:1px 8px;border-radius:999px;background:var(--surface)}
+.chip.mira-dup{border-style:dashed;gap:2px;padding:0 4px 0 10px;cursor:default}
+.mira-dup-name{all:unset;cursor:pointer;font-weight:700;padding:8px 0}
+.mira-dup-name small{font-weight:500;color:var(--muted)}
+.mira-dup-x{all:unset;cursor:pointer;padding:4px 8px;border-radius:8px;font-weight:800;color:var(--muted)}
+.mira-dup-x:hover{background:var(--bg);color:var(--ink)}
+[data-theme=dark] .mira-marked-head{color:#FF6B6B}
 </style>
 </head>
 <body>
@@ -1292,7 +1303,9 @@ function renderStats(){
     stat('Sin asignar', un, un > 0) +
     (S.people.some(p => p.flag) ? stat('Para revisar', S.people.filter(p => p.flag).length, true, 'Personas con alerta. Tocá para verlas en la lista.', 'flag-list') : '') +
     '<div class="stat-group" role="group" aria-label="No suman"><span class="stat-group-label">No suman</span><div class="stat-group-row">' +
-      '<div class="stat mira"><span>En la mira</span><span>' + membersOf(MIRA).length + '</span></div>' +
+      (() => { const nM = membersOf(MIRA).length, nF = miraMarked().length;
+        return '<div class="stat mira" title="' + esc(nM + ' en el grupo En la mira (no cuentan) · ' + nF + ' marcadas que siguen contando en su equipo') + '"><span>En la mira</span><span>' + (nM + nF) + '</span>' +
+          (nF ? '<small class="mira-sub">' + nM + ' no cuentan · ' + nF + ' siguen contando</small>' : '') + '</div>'; })() +
       stat('VO - B2B', S.people.filter(p => isOutside(p.team)).length, false, 'Variación organizacional: personas en las estructuras aparte (a la derecha del organigrama, p. ej. B2B).') +
       stat('Parking lot', membersOf(PARK).length) +
       '<div class="stat baja"><span>Personal bajas</span><span>' + membersOf(BAJA).length + '</span></div>' +
@@ -1375,7 +1388,7 @@ function ringSvg(n, max, over){
 function tip(p){
   const r = role(p.role);
   const nc = noteCount('person', p.id);
-  return (p.flag ? '⚠ ' + p.flag + '\n' : '') + p.name + (nc ? '  (' + nc + (nc === 1 ? ' comentario)' : ' comentarios)') : '') + '\n' + (p.title || r.label) + (p.company === EXT ? ' · TMA' : p.company === THIRD ? ' · Tercero' + (p.vendor ? ' (' + p.vendor + ')' : '') : '') + (p.spec ? '\nEspecialidad: ' + p.spec : '') + '\nSkill: ' + (skillOf(p) ? skillOf(p) + ' de 5' : 'sin evaluar') + (p.manager ? '\nJefe: ' + p.manager : '');
+  return (p.mira && p.team !== MIRA ? '◎ En la mira (sigue contando)\n' : '') + (p.flag ? '⚠ ' + p.flag + '\n' : '') + p.name + (nc ? '  (' + nc + (nc === 1 ? ' comentario)' : ' comentarios)') : '') + '\n' + (p.title || r.label) + (p.company === EXT ? ' · TMA' : p.company === THIRD ? ' · Tercero' + (p.vendor ? ' (' + p.vendor + ')' : '') : '') + (p.spec ? '\nEspecialidad: ' + p.spec : '') + '\nSkill: ' + (skillOf(p) ? skillOf(p) + ' de 5' : 'sin evaluar') + (p.manager ? '\nJefe: ' + p.manager : '');
 }
 function face(p){
   const r = role(p.role);
@@ -1627,6 +1640,7 @@ function pgroupDialog(pk, gi){
         all[pk] = list; S.settings.pgroups = all; });
     });
 }
+function miraMarked(){ return S.people.filter(p => p.mira && p.team !== MIRA); }
 function renderPool(){
   [['#poolHome', HOME, 'Sin asignar · Personal'], ['#poolExt', EXT, 'TMA · sin asignar'], ['#poolThird', THIRD, 'Terceros · sin asignar']].forEach(([sel, co, title]) => {
     const m = membersOf(UN).filter(p => (p.company || HOME) === co);
@@ -1646,7 +1660,10 @@ function renderPool(){
   $('#poolMira').innerHTML = '<div class="pool-head"><h2 class="mira-title"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1.5v5M12 17.5v5M1.5 12h5M17.5 12h5"/></svg>En la mira</h2><span class="count">' + mi.length + '</span>' +
     '<span class="hint">gente que estamos mirando sumar · no cuenta en la estructura</span>' +
     '<button class="btn pool-add" data-act="add-person" data-team="' + MIRA + '">+ Persona en la mira</button></div>' +
-    '<div class="pool-list">' + (mi.length ? mi.map(p => chip(p, true)).join('') : '<span class="hint">Vacío · arrastrá gente acá o agregala con el botón</span>') + '</div>';
+    '<div class="pool-list">' + (mi.length ? mi.map(p => chip(p, true)).join('') : (miraMarked().length ? '' : '<span class="hint">Vacío · arrastrá gente acá, agregala con el botón o marcá "En la mira" en su ficha</span>')) + '</div>' +
+    (miraMarked().length ? '<div class="mira-marked"><div class="mira-marked-head">Marcadas · siguen contando en su equipo <span class="count">' + miraMarked().length + '</span></div><div class="pool-list">' +
+      miraMarked().map(p => '<span class="chip mira-dup' + coClass(p) + '"><button class="mira-dup-name" data-act="edit-person" data-pid="' + p.id + '" title="' + esc(tip(p)) + '">' + esc(p.name) + ' <small>· ' + esc(teamName(p.team)) + '</small></button>' +
+        '<button class="mira-dup-x" data-act="mira-unmark" data-pid="' + p.id + '" aria-label="Sacar a ' + esc(p.name) + ' de En la mira" title="Sacar de En la mira">✕</button></span>').join('') + '</div></div>' : '');
   const pk = membersOf(PARK);
   $('#poolPark').innerHTML = '<div class="pool-head"><h2>Parking lot</h2><span class="count">' + pk.length + '</span>' +
     '<span class="hint">no cuenta en la estructura · arrastrá gente acá para apartarla</span></div>' +
@@ -2170,6 +2187,7 @@ function personDialog(p, co, team0){
     '<datalist id="vendorList">' + [...new Set(S.people.map(x => x.vendor).filter(Boolean))].sort().map(x => '<option value="' + esc(x) + '">').join('') + '</datalist>' +
     '<label class="field">Equipo<select name="team">' + teamOptions(p.team) + '</select></label>' +
     '<label class="field">Alerta / para revisar <span style="font-weight:400;color:var(--muted)">(dejalo vacío si no hay nada que revisar)</span><input name="flag" value="' + esc(p.flag || '') + '" placeholder="Ej: revisar si nos lo asignan"></label>' +
+    '<label class="field" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="mira"' + (p.mira ? ' checked' : '') + ' style="width:auto;height:auto"> En la mira <span style="font-weight:400;color:var(--muted)">(aparece también en "En la mira" y sigue contando en su equipo)</span></label>' +
     '<label class="field">Especialidad<input name="spec" list="specList" value="' + esc(p.spec || '') + '" placeholder="Ej: DB, SO, Networking"></label>' +
     '<div class="field">Skill (1 a 5)<div class="sk-pick" role="radiogroup" aria-label="Skill">' + [0,1,2,3,4,5].map(k =>
       '<label><input type="radio" name="skill" value="' + k + '"' + (skillOf(p) === k ? ' checked' : '') + '><span style="' + (skillOf(p) === k ? 'background:' + SKC[k] : '') + '" data-c="' + SKC[k] + '">' + (k || 'Sin evaluar') + '</span></label>').join('') + '</div></div>' +
@@ -2184,7 +2202,7 @@ function personDialog(p, co, team0){
       if(v === 'delete'){ commit(() => { S.people = S.people.filter(x => x.id !== p.id); }); toast('Persona eliminada'); return; }
       const name = f.elements.name.value.trim(); if(!name) return false;
       commit(() => {
-        const vals = {name, role:f.elements.role.value, team:f.elements.team.value, company:f.elements.company.value, vendor:f.elements.company.value === THIRD ? f.elements.vendor.value.trim() : '', title:f.elements.title.value.trim(), manager:f.elements.manager.value.trim(), spec:f.elements.spec.value.trim(), flag:f.elements.flag.value.trim(), skill:(+(f.querySelector('input[name=skill]:checked') || {}).value || null)};
+        const vals = {name, role:f.elements.role.value, team:f.elements.team.value, company:f.elements.company.value, vendor:f.elements.company.value === THIRD ? f.elements.vendor.value.trim() : '', title:f.elements.title.value.trim(), manager:f.elements.manager.value.trim(), spec:f.elements.spec.value.trim(), flag:f.elements.flag.value.trim(), mira: f.elements.mira.checked || undefined, skill:(+(f.querySelector('input[name=skill]:checked') || {}).value || null)};
         if(isNew) S.people.push(Object.assign({id:uid('p')}, vals));
         else Object.assign(S.people.find(x => x.id === p.id), vals);
       });
@@ -2433,6 +2451,7 @@ document.addEventListener('click', e => {
   else if(act === 'edit-person'){ const p = S.people.find(x => x.id === el.dataset.pid); if(p) personDialog(p); }
   else if(act === 'add-person') personDialog(null, el.dataset.co, el.dataset.team);
   else if(act === 'pgrp-add') pgroupDialog(el.dataset.pk, null);
+  else if(act === 'mira-unmark'){ const p = S.people.find(x => x.id === el.dataset.pid); if(p){ commit(() => { delete p.mira; }); toast(p.name + ' ya no está en la mira'); } }
   else if(act === 'pgrp-toggle'){ const k = el.dataset.key; S.collapsed = S.collapsed || {}; if(S.collapsed[k]) delete S.collapsed[k]; else S.collapsed[k] = true; save(); renderPool(); }
   else if(act === 'pgrp-edit') pgroupDialog(el.dataset.pk, +el.dataset.gi);
   else if(act === 'edit-team') teamDialog(S.teams.find(x => x.id === tid));
