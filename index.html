@@ -550,6 +550,14 @@ body.locked .layout{display:none!important}
 .stat.area > span:nth-child(2){font-size:22px;font-weight:800}
 .stat.area .area-split{font-size:12px;font-weight:700;color:var(--muted);margin-top:2px}
 [data-theme=dark] .stat.area{border-color:#3B3466}
+.stat.area .area-split{display:flex;flex-wrap:wrap;gap:4px}
+.area-split b{font-weight:800;padding:1px 7px;border-radius:999px}
+.area-split .co-p{background:var(--co-home-bg);color:#1D6FA3}
+.area-split .co-t{background:var(--co-ext-bg);color:var(--co-ext-ink)}
+.area-split .co-3{background:var(--co-3p-bg);color:var(--co-3p-ink)}
+[data-theme=dark] .area-split .co-p{background:#12324A;color:#7CC8F2}
+[data-theme=dark] .area-split .co-t{background:#123222;color:#7ED6A0}
+[data-theme=dark] .area-split .co-3{background:#2E1A3A;color:#D3A3EE}
 /* ---- ancho de la columna izquierda (arrastrable) ---- */
 .col-resizer{flex:0 0 14px;align-self:flex-start;position:sticky;top:16px;height:calc(100vh - 32px);cursor:col-resize;touch-action:none;display:flex;justify-content:center;outline:none}
 .col-resizer::before{content:"";width:3px;height:100%;border-radius:3px;background:transparent;transition:background .15s}
@@ -1265,7 +1273,7 @@ function areaStats(){
     const th = by(THIRD);
     const tip = roots.length ? 'Gente asignada a ' + roots.map(t => t.name).join(' + ') + ' y a los equipos que dependen de ellos.' : 'No encuentro un equipo llamado ' + desc + ' en el organigrama.';
     return '<div class="stat area" title="' + esc(tip) + '"><span>' + esc(label) + '</span><span>' + (roots.length ? m.length : '—') + '</span>' +
-      '<small class="area-split">Personal ' + by(HOME) + ' · TMA ' + by(EXT) + (th ? ' · Terceros ' + th : '') + '</small></div>';
+      '<small class="area-split"><b class="co-p">Personal ' + by(HOME) + '</b><b class="co-t">TMA ' + by(EXT) + '</b>' + (th ? '<b class="co-3">Terceros ' + th + '</b>' : '') + '</small></div>';
   }).join('');
 }
 function roleStats(){
