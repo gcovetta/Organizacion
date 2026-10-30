@@ -572,6 +572,17 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none!impor
 /* ---- arrastrar el organigrama con el mouse ---- */
 .tree-wrap{cursor:grab}
 .tree-wrap.panning,.tree-wrap.panning *{cursor:grabbing!important;user-select:none!important}
+/* ---- grupos dentro de TMA · sin asignar / TMA en duda ---- */
+.pgrps{display:flex;flex-direction:column;gap:10px}
+.pgrp{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-radius:12px;border:1.5px solid rgba(0,0,0,.12);background:rgba(255,255,255,.7)}
+.pgrp.loose{border-style:dashed;background:transparent}
+.pgrp.drop{border-color:var(--accent);box-shadow:0 0 0 3px #4B3FC91F}
+.pgrp-head{display:flex;align-items:center;gap:8px;font-size:13px}
+.pgrp-head .count{font-weight:800;font-size:12px;padding:1px 8px;border-radius:999px;background:var(--bg)}
+.pgrp-head .mini,.pgrp-head .pgrp-add{margin-left:auto}
+.pgrp-add{min-height:30px;padding:0 10px;font-size:12px}
+[data-theme=dark] .pgrp{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.14)}
+[data-theme=dark] .pgrp.loose{background:transparent}
 </style>
 </head>
 <body>
@@ -1530,20 +1541,60 @@ function renderLevel(list, minW){
   return h + '</div>';
 }
 
+/* ---------- grupos dentro de TMA · sin asignar y TMA en duda ---------- */
+// los nombres de los grupos se guardan en la configuración compartida; cada persona guarda su grupo en p.pgrp
+function pgroups(pk){ const g = (S.settings.pgroups || {})[pk]; return Array.isArray(g) ? g : []; }
+function groupedList(pk, m, drop, co){
+  const gs = pgroups(pk);
+  const dz = ' data-drop="' + drop + '"' + (co ? ' data-co="' + co + '"' : '');
+  const inG = g => m.filter(p => p.pgrp === g);
+  const loose = m.filter(p => !p.pgrp || !gs.includes(p.pgrp));
+  return '<div class="pgrps">' + gs.map((g, i) => { const gm = inG(g);
+      return '<div class="pgrp"' + dz + ' data-grp="' + esc(g) + '"><div class="pgrp-head"><b>' + esc(g) + '</b><span class="count">' + gm.length + '</span>' +
+        '<button class="mini" data-act="pgrp-edit" data-pk="' + pk + '" data-gi="' + i + '" aria-label="Editar grupo ' + esc(g) + '" title="Renombrar o eliminar">' + ICON_EDIT + '</button></div>' +
+        '<div class="pool-list">' + (gm.length ? gm.map(p => chip(p, true)).join('') : '<span class="hint">Arrastrá personas acá</span>') + '</div></div>';
+    }).join('') +
+    '<div class="pgrp loose"' + dz + ' data-grp=""><div class="pgrp-head"><b>' + (gs.length ? 'Sin grupo' : 'Personas') + '</b><span class="count">' + loose.length + '</span>' +
+      '<button class="btn pgrp-add" data-act="pgrp-add" data-pk="' + pk + '">+ Grupo</button></div>' +
+      '<div class="pool-list">' + (loose.length ? loose.map(p => chip(p, true)).join('') : '<span class="hint">Vacío</span>') + '</div></div>' +
+  '</div>';
+}
+function pgroupDialog(pk, gi){
+  const gs = pgroups(pk), isNew = gi == null, old = isNew ? '' : gs[gi];
+  const where = pk === 'tma' ? 'TMA · sin asignar' : 'TMA en duda';
+  openDialog(isNew ? 'Nuevo grupo en ' + where : 'Grupo "' + old + '"',
+    '<label class="field">Nombre del grupo<input name="g" required maxlength="60" value="' + esc(old) + '" placeholder="Ej: DBA, Networking, SO"></label>' +
+    (isNew ? '' : '<p class="note">Si lo eliminás, sus personas quedan en "Sin grupo" (siguen en ' + where + ').</p>'),
+    (isNew ? '' : '<button class="btn danger" value="del" formnovalidate>Eliminar grupo</button>') +
+    '<button class="btn" value="cancel" formnovalidate>Cancelar</button><button class="btn primary" value="ok">' + (isNew ? 'Crear' : 'Guardar') + '</button>',
+    (f, v) => {
+      const inPool = p => pk === 'tma' ? (p.team === UN && (p.company || HOME) === EXT) : p.team === DUDA;
+      if(v === 'del'){
+        commit(() => { const all = Object.assign({}, S.settings.pgroups || {}); all[pk] = gs.filter((_, i) => i !== gi); S.settings.pgroups = all;
+          S.people.forEach(p => { if(inPool(p) && p.pgrp === old) delete p.pgrp; }); });
+        toast('Grupo "' + old + '" eliminado'); return;
+      }
+      const name = f.elements.g.value.trim(); if(!name) return false;
+      if(gs.some((x, i) => x.toLowerCase() === name.toLowerCase() && i !== gi)){ toast('Ya hay un grupo con ese nombre'); return false; }
+      commit(() => { const all = Object.assign({}, S.settings.pgroups || {}); const list = gs.slice();
+        if(isNew) list.push(name); else { list[gi] = name; S.people.forEach(p => { if(inPool(p) && p.pgrp === old) p.pgrp = name; }); }
+        all[pk] = list; S.settings.pgroups = all; });
+    });
+}
 function renderPool(){
   [['#poolHome', HOME, 'Sin asignar · Personal'], ['#poolExt', EXT, 'TMA · sin asignar'], ['#poolThird', THIRD, 'Terceros · sin asignar']].forEach(([sel, co, title]) => {
     const m = membersOf(UN).filter(p => (p.company || HOME) === co);
     $(sel).innerHTML = '<div class="pool-head"><h2>' + title + '</h2><span class="count">' + m.length + '</span>' +
       '<span class="hint">' + (co === EXT ? 'personas que vienen de TMA · arrastralas a un equipo' : co === THIRD ? 'personas de proveedores · cuentan en los equipos, arriba van aparte' : 'arrastrá a un equipo') + '</span>' +
       '<button class="btn pool-add" data-act="add-person" data-co="' + co + '">+ Persona' + (co === EXT ? ' de TMA' : co === THIRD ? ' de tercero' : '') + '</button></div>' +
-      '<div class="pool-list">' + (m.length ? m.map(p => chip(p, true)).join('') : '<span class="hint">Vacío</span>') + '</div>';
+      (co === EXT ? groupedList('tma', m, 'u', EXT) : '<div class="pool-list">' + (m.length ? m.map(p => chip(p, true)).join('') : '<span class="hint">Vacío</span>') + '</div>');
   });
   [['#poolBaja', BAJA, 'Personal bajas', HOME, '+ Baja de Personal'], ['#poolDuda', DUDA, 'TMA en duda', EXT, '+ Persona de TMA en duda']].forEach(([sel, tid, title, co, btn]) => {
     const m = membersOf(tid);
     $(sel).innerHTML = '<div class="pool-head"><h2>' + title + '</h2><span class="count">' + m.length + '</span>' +
       '<span class="hint">no suma al total de MCH · arrastrá gente acá</span>' +
       '<button class="btn pool-add" data-act="add-person" data-team="' + tid + '" data-co="' + co + '">' + btn + '</button></div>' +
-      '<div class="pool-list">' + (m.length ? m.map(p => chip(p, true)).join('') : '<span class="hint">Vacío</span>') + '</div>';
+      (tid === DUDA ? groupedList('duda', m, DUDA, '') : '<div class="pool-list">' + (m.length ? m.map(p => chip(p, true)).join('') : '<span class="hint">Vacío</span>') + '</div>');
   });
   const mi = membersOf(MIRA);
   $('#poolMira').innerHTML = '<div class="pool-head"><h2 class="mira-title"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1.5v5M12 17.5v5M1.5 12h5M17.5 12h5"/></svg>En la mira</h2><span class="count">' + mi.length + '</span>' +
@@ -2248,6 +2299,8 @@ document.addEventListener('click', e => {
   else if(act === 'unfold-all'){ S.collapsed = {}; save(); render(); }
   else if(act === 'edit-person'){ const p = S.people.find(x => x.id === el.dataset.pid); if(p) personDialog(p); }
   else if(act === 'add-person') personDialog(null, el.dataset.co, el.dataset.team);
+  else if(act === 'pgrp-add') pgroupDialog(el.dataset.pk, null);
+  else if(act === 'pgrp-edit') pgroupDialog(el.dataset.pk, +el.dataset.gi);
   else if(act === 'edit-team') teamDialog(S.teams.find(x => x.id === tid));
   else if(act === 'list-open'){ LV.open = true; renderList(); const s = $('#lvSearch'); if(s) s.focus(); }
   else if(act === 'list-close'){ LV.open = false; LV.fTeam = LV.fRole = null; if(LV.back){ LV.back = false; DB_V.open = true; } renderList(); renderDash(); }
@@ -2306,10 +2359,11 @@ document.addEventListener('drop', e => {
   dragId = null;
   zone.classList.remove('drop');
   const co = zone.dataset.co;
-  if(!p || (p.team === team && (!co || p.company === co))) return;
+  const grp = zone.dataset.grp; // undefined fuera de los grupos
+  if(!p || (p.team === team && (!co || p.company === co) && (grp === undefined ? !p.pgrp : (p.pgrp || '') === grp))) return;
   const dest = team === MIRA ? 'En la mira' : team === PARK ? 'Parking lot' : team === BAJA ? 'Personal bajas' : team === DUDA ? 'TMA en duda' : team === UN ? 'Sin asignar · ' + co : (S.teams.find(t => t.id === team) || {}).name;
-  commit(() => { p.team = team; if(co) p.company = co; });
-  toast(p.name + ' → ' + dest);
+  commit(() => { p.team = team; if(co) p.company = co; if(grp) p.pgrp = grp; else delete p.pgrp; });
+  toast(p.name + ' → ' + dest + (grp ? ' · ' + grp : ''));
 });
 
 document.addEventListener('change', e => {
