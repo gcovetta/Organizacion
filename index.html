@@ -1309,7 +1309,12 @@ function areaStats(){
   const mch = '<div class="stat area mch" title="' + esc('Suma de ' + (names.join(' + ') || 'las áreas') + '.') + '"><span>MCH</span>' +
     '<div class="mch-nums"><div><b>' + mm.length + '</b><small>con terceros</small></div><div><b>' + (mm.length - thM) + '</b><small>sin terceros</small></div></div>' +
     split(byM, thM) + '</div>';
-  return mch + boxes.join('');
+  // MCH sin TMA: la misma suma, sin la gente de TMA
+  const nt = mm.filter(p => (p.company || HOME) !== EXT), thN = nt.filter(p => p.company === THIRD).length;
+  const mchNoTma = '<div class="stat area mch" title="MCH sin contar a la gente de TMA."><span>MCH sin TMA</span>' +
+    '<div class="mch-nums"><div><b>' + nt.length + '</b><small>con terceros</small></div><div><b>' + (nt.length - thN) + '</b><small>sin terceros</small></div></div>' +
+    '<small class="area-split"><b class="co-p">Personal ' + byM(HOME) + '</b>' + (thN ? '<b class="co-3">Terceros ' + thN + '</b>' : '') + '</small></div>';
+  return mch + mchNoTma + boxes.join('');
 }
 function roleStats(){
   const ppl = ourPeople(), cnt = {};
