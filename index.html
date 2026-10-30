@@ -605,6 +605,9 @@ body{overflow-x:clip}
 .lv-table tr.lv-filters th{top:39px;padding:4px 6px;background:var(--surface-2)}
 .lv-filters input,.lv-filters select{width:100%;min-width:70px;height:30px;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;padding:0 6px;background:var(--surface);color:var(--ink);font:inherit;font-size:12px;font-weight:500}
 .lv-filters .on{border-color:var(--accent);box-shadow:0 0 0 2px #4B3FC933}
+.direct-node{padding:10px 16px;border-radius:12px;border:2px solid var(--co-home);background:var(--surface);color:var(--ink);font:inherit;font-weight:800;font-size:14px;cursor:grab;white-space:nowrap}
+.direct-node.ext{border-color:var(--co-ext)}.direct-node.third{border-color:var(--co-3p)}
+.root.drop{outline:3px solid var(--accent);outline-offset:3px}
 </style>
 </head>
 <body>
@@ -1317,7 +1320,8 @@ function areaStats(){
     const tip = roots.length ? 'Gente asignada a ' + roots.map(t => t.name).join(' + ') + ' y a los equipos que dependen de ellos' + (extra ? ', más Sin asignar · Personal y TMA · sin asignar' : '') + '.' : 'No encuentro un equipo llamado ' + desc + ' en el organigrama.';
     return '<div class="stat area" title="' + esc(tip) + '"><span>' + esc(label) + '</span><span>' + (roots.length || m.length ? m.length : '—') + '</span>' + split(by, by(THIRD)) + '</div>';
   });
-  // MCH = Cloud Privada + Cloud Advisor + Cloud Pública (cada persona se cuenta una sola vez)
+  // MCH = Cloud Privada + Cloud Advisor + Cloud Pública + quienes dependen directo del líder (cada persona se cuenta una sola vez)
+  membersOf(DIRECT).forEach(p => all.add(p)); if(membersOf(DIRECT).length) names.push('directos de ' + (S.tribe.lead || 'líder'));
   const mm = [...all], byM = c => mm.filter(p => (p.company || HOME) === c).length, thM = byM(THIRD);
   const mch = '<div class="stat area mch" title="' + esc('Suma de ' + (names.join(' + ') || 'las áreas') + '.') + '"><span>MCH</span>' +
     '<div class="mch-nums"><div><b>' + mm.length + '</b><small>con terceros</small></div><div><b>' + (mm.length - thM) + '</b><small>sin terceros</small></div></div>' +
@@ -1400,17 +1404,13 @@ const ICON_EDIT = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" s
 function renderTree(){
   const roots = childrenOf(null);
   const leadName = S.tribe.lead || 'Líder de tribu';
-  let h = '<button class="root" data-act="settings" title="Editar tribu">' +
+  let h = '<button class="root" data-act="settings" data-drop="' + DIRECT + '" title="Editar tribu · soltá a una persona acá para que dependa directo">' +
     '<span class="av">' + esc(initials(leadName)) + '</span>' +
     '<span><b>' + esc(leadName) + '</b><small>' + esc(S.tribe.name || '') + ' · ' + ourPeople().filter(p => p.company !== THIRD).length + ' personas' + (ourPeople().some(p => p.company === THIRD) ? ' + ' + ourPeople().filter(p => p.company === THIRD).length + (ourPeople().filter(p => p.company === THIRD).length === 1 ? ' tercero' : ' terceros') : '') + '</small></span></button>';
-  { const dm = membersOf(DIRECT);
-    h += '<div class="vline" style="height:14px"></div><div class="direct-box' + (dm.length ? '' : ' empty') + '" data-drop="' + DIRECT + '" aria-label="Dependen directo de ' + esc(leadName) + '">' +
-      '<div class="direct-head"><b>Dependen directo de ' + esc(leadName) + '</b><span class="count">' + dm.length + '</span>' +
-      '<button class="btn pgrp-add" data-act="add-person" data-team="' + DIRECT + '">+ Persona</button></div>' +
-      '<div class="pool-list">' + (dm.length ? dm.map(p => chip(p, true)).join('') : '<span class="hint">Sin equipo a cargo · arrastrá a alguien acá o agregalo con el botón</span>') + '</div></div>'; }
-  if(roots.length){
-    const totalLeaves = roots.reduce((a, t) => a + leaves(t.id), 0);
-    h += '<div class="vline"></div>' + renderLevel(roots, totalLeaves * 340);
+  const direct = membersOf(DIRECT);
+  if(roots.length || direct.length){
+    const totalLeaves = roots.reduce((a, t) => a + leaves(t.id), 0) + direct.length * 0.6;
+    h += '<div class="vline"></div>' + renderLevel(roots, totalLeaves * 340, direct);
   }
   h += '<button class="btn add-team" data-act="add-team">+ Nuevo equipo</button>';
   const others = otherRoots();
@@ -1549,8 +1549,9 @@ function teamCard(t){
   return h;
 }
 
-function renderLevel(list, minW){
-  const n = list.length;
+function renderLevel(list, minW, people){
+  people = people || [];
+  const n = list.length + people.length;
   let h = '<div class="row"' + (minW ? ' style="min-width:' + minW + 'px"' : '') + '>';
   list.forEach((t, i) => {
       const a = analyze(t.id);
@@ -1570,6 +1571,15 @@ function renderLevel(list, minW){
           ? '<div class="stack">' + kids.map(k => '<div class="stack-item">' + teamCard(k) + '</div>').join('') + '</div>'
           : renderLevel(kids, 0)) : '') +
         '</div>';
+  });
+  // personas que dependen directo (sin equipo a cargo): solo el nombre, al final del nivel
+  people.forEach((p, k) => {
+    const i = list.length + k;
+    h += '<div class="col" style="flex-grow:0.6;min-width:210px">' +
+      '<div class="hline" style="margin-left:' + (i === 0 ? '50%' : '0') + ';margin-right:' + (i === n - 1 ? '50%' : '0') + ';' + (n === 1 ? 'visibility:hidden' : '') + '"></div>' +
+      '<div class="vline" style="height:22px"></div>' +
+      '<button class="direct-node' + coClass(p) + personClass(p) + '" draggable="true" data-pid="' + p.id + '" data-act="edit-person" title="' + esc(tip(p)) + '">' + esc(p.name) + '</button>' +
+      '</div>';
   });
   return h + '</div>';
 }
