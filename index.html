@@ -619,6 +619,13 @@ body{overflow-x:clip}
 .mira-dup-x{all:unset;cursor:pointer;padding:4px 8px;border-radius:8px;font-weight:800;color:var(--muted)}
 .mira-dup-x:hover{background:var(--bg);color:var(--ink)}
 [data-theme=dark] .mira-marked-head{color:#FF6B6B}
+/* ---- comentarios en la matriz equipo × rol ---- */
+.db-hm td.c.has-nb{position:relative;padding-right:22px}
+.hm-note{position:absolute;top:2px;right:2px;display:inline-flex;align-items:center;gap:1px;padding:1px 2px;border:none;border-radius:6px;background:transparent;color:inherit;opacity:.45;cursor:pointer;font:inherit;font-size:10px}
+.hm-note svg{width:12px;height:12px}
+.hm-note:hover,.hm-note:focus-visible{opacity:1;background:rgba(0,0,0,.08)}
+.hm-note.has{opacity:1;color:var(--accent)}
+.hm-note b{font-weight:800}
 </style>
 </head>
 <body>
@@ -1183,6 +1190,9 @@ function noteBtn(type, id, name){
   return '<button class="mini' + (n ? ' has-notes' : '') + '" data-act="notes" data-ntype="' + type + '" data-nid="' + id + '" aria-label="Comentarios de ' + esc(name) + (n ? ' (' + n + ')' : '') + '" title="Comentarios">' + ICON_COMMENT + (n ? '<span class="n">' + n + '</span>' : '') + '</button>';
 }
 function targetName(type, id){
+  if(type === 'team' && String(id).includes('::')){ // celda de la matriz equipo × rol
+    const [tid, rid] = String(id).split('::'); const t = S.teams.find(x => x.id === tid);
+    return (t ? t.name : 'Equipo eliminado') + ' · ' + ((S.roles.find(r => r.id === rid) || {}).label || 'rol eliminado'); }
   if(type === 'team'){ const t = S.teams.find(x => x.id === id); return t ? 'Equipo ' + t.name : 'Equipo eliminado'; }
   if(type === 'person'){ const p = S.people.find(x => x.id === id); return p ? p.name : 'Persona eliminada'; }
   return 'General';
@@ -1955,12 +1965,14 @@ function renderDash(){
     if(c.d <= -1) return 'hm-under';
     return 'hm-ok';
   };
-  h += '<section class="db-sec"><h3>B · Matriz equipo × rol</h3><p class="note">Cantidad de personas por rol. En los multi-rol el color compara con lo esperado según la mezcla multi-rol; en los específicos marca lo que queda fuera de su rol principal. Tocá el tipo para cambiarlo y una celda para ver esas personas.</p>'+(hasMulti ? '' : '<p class="note" style="color:var(--warn)">Ningún equipo visible es multi-rol: la referencia es el total.</p>')+'' +
+  h += '<section class="db-sec"><h3>B · Matriz equipo × rol</h3><p class="note">Cantidad de personas por rol. En los multi-rol el color compara con lo esperado según la mezcla multi-rol; en los específicos marca lo que queda fuera de su rol principal. Tocá el tipo para cambiarlo y una celda para ver esas personas. En las celdas con alerta, el globito sirve para dejar un comentario.</p>'+(hasMulti ? '' : '<p class="note" style="color:var(--warn)">Ningún equipo visible es multi-rol: la referencia es el total.</p>')+'' +
     '<div class="db-leg"><span><i class="hm-over"></i>Sobra (1 o más sobre lo esperado)</span><span><i class="hm-ok"></i>En línea</span><span><i class="hm-under"></i>Falta</span><span><i class="hm-off"></i>Fuera del foco (equipo específico)</span>' + (leadIds.length ? '<span><i class="hm-nolead"></i>Sin ' + esc(leadName) + '</span>' : '') + '</div>' +
     '<div class="db-hm-wrap"><table class="db-hm"><thead><tr><th class="t">Equipo</th><th>Tipo</th>' + roles.map(r => '<th title="' + esc(r.label) + '"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:' + esc(r.color) + ';margin-right:4px"></span>' + esc(r.short) + '</th>').join('') + '<th>Total</th><th>Índice</th></tr></thead><tbody>' +
     rows.map(r => '<tr><td class="t">' + esc(r.t.name) + '</td><td><button class="db-type' + (r.multi ? ' multi' : '') + '" data-act="dash-type" data-tid="' + r.t.id + '" title="Tocá para cambiar a ' + (r.multi ? 'específico' : 'multi-rol') + '">' + (r.multi ? 'Multi-rol' : 'Específico') + '</button></td>' + r.cells.map((c, i) => { const hc = col(c, i, r);
         const tip = roles[i].label + ': ' + c.v + (r.multi ? ' · esperado ' + c.e.toFixed(1) : c.main ? ' · rol principal' : c.lead ? '' : c.v ? ' · fuera del foco del equipo' : '');
-        return '<td class="c ' + hc + '" data-act="dash-cell" data-tid="' + r.t.id + '" data-rid="' + esc(roles[i].id) + '" title="' + esc(tip) + '">' + c.v + '</td>'; }).join('') +
+        const nid = r.t.id + '::' + roles[i].id, nn = noteCount('team', nid), alert = hc !== 'hm-ok' && hc !== 'hm-empty';
+        const nb = (alert || nn) ? '<button class="hm-note' + (nn ? ' has' : '') + '" data-act="notes" data-ntype="team" data-nid="' + esc(nid) + '" title="' + (nn ? nn + (nn === 1 ? ' comentario' : ' comentarios') : 'Comentar esta alerta') + '" aria-label="Comentarios de ' + esc(r.t.name + ' · ' + roles[i].label) + '">' + ICON_COMMENT + (nn ? '<b>' + nn + '</b>' : '') + '</button>' : '';
+        return '<td class="c ' + hc + (nb ? ' has-nb' : '') + '" data-act="dash-cell" data-tid="' + r.t.id + '" data-rid="' + esc(roles[i].id) + '" title="' + esc(tip) + '">' + c.v + nb + '</td>'; }).join('') +
       '<td class="muted">' + r.n + '</td><td style="font-weight:800;color:' + (r.idx < 70 ? 'var(--warn)' : 'var(--muted)') + '" title="' + esc(r.multi ? 'Parecido a la mezcla multi-rol' : 'Foco en ' + (r.main ? r.main.label : '—')) + '">' + r.idx + '</td></tr>').join('') +
     '<tr><td class="t muted">Tribu</td><td></td>' + tot.map(v => '<td class="muted">' + v + '</td>').join('') + '<td class="muted">' + N + '</td><td></td></tr></tbody></table></div></section>';
   // C · composición
