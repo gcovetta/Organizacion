@@ -1265,7 +1265,7 @@ function renderStats(){
 }
 // recuadros por área: suman a la gente de los equipos con ese nombre y de todos los que dependen de ellos
 const AREAS = [
-  ['Cloud Privada', [/diseno.*ingenier/, /soporte.*operac/], 'Diseño & Ingeniería + Soporte & Operación', p => p.team === UN && (p.company || HOME) === HOME], // + Sin asignar · Personal
+  ['Cloud Privada', [/diseno.*ingenier/, /soporte.*operac/], 'Diseño & Ingeniería + Soporte & Operación', p => p.team === UN && [HOME, EXT].includes(p.company || HOME)], // + Sin asignar · Personal y TMA · sin asignar
   ['Cloud Advisor', [/cloud advisor/], 'Cloud Advisor'],
   ['Cloud Pública', [/cloud publica/, /public cloud/], 'Cloud Pública']
 ];
@@ -1280,7 +1280,7 @@ function areaStats(){
     m.forEach(p => all.add(p));
     if(roots.length || m.length) names.push(label);
     const by = c => m.filter(p => (p.company || HOME) === c).length;
-    const tip = roots.length ? 'Gente asignada a ' + roots.map(t => t.name).join(' + ') + ' y a los equipos que dependen de ellos' + (extra ? ', más Sin asignar · Personal' : '') + '.' : 'No encuentro un equipo llamado ' + desc + ' en el organigrama.';
+    const tip = roots.length ? 'Gente asignada a ' + roots.map(t => t.name).join(' + ') + ' y a los equipos que dependen de ellos' + (extra ? ', más Sin asignar · Personal y TMA · sin asignar' : '') + '.' : 'No encuentro un equipo llamado ' + desc + ' en el organigrama.';
     return '<div class="stat area" title="' + esc(tip) + '"><span>' + esc(label) + '</span><span>' + (roots.length || m.length ? m.length : '—') + '</span>' + split(by, by(THIRD)) + '</div>';
   });
   // MCH = Cloud Privada + Cloud Advisor + Cloud Pública (cada persona se cuenta una sola vez)
