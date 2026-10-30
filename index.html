@@ -601,6 +601,10 @@ body{overflow-x:clip}
 .direct-head .count{font-weight:800;font-size:12px;padding:1px 8px;border-radius:999px;background:var(--bg)}
 .direct-head .pgrp-add{margin-left:auto}
 [data-theme=dark] .direct-box{border-color:#5A5A72}
+/* ---- filtros por columna en la lista de personas ---- */
+.lv-table tr.lv-filters th{top:39px;padding:4px 6px;background:var(--surface-2)}
+.lv-filters input,.lv-filters select{width:100%;min-width:70px;height:30px;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;padding:0 6px;background:var(--surface);color:var(--ink);font:inherit;font-size:12px;font-weight:500}
+.lv-filters .on{border-color:var(--accent);box-shadow:0 0 0 2px #4B3FC933}
 </style>
 </head>
 <body>
@@ -1640,7 +1644,9 @@ function renderPool(){
 }
 
 /* ---------- lista de personas (vista de tabla editable) ---------- */
-const LV = {open:false, q:'', filter:'all', sort:'name', dir:1, pending:false, fTeam:null, fRole:null};
+const LV = {open:false, q:'', filter:'all', sort:'name', dir:1, pending:false, fTeam:null, fRole:null, cf:{}};
+// filtros por columna: texto (contiene) o lista (igual a); '∅' = vacío
+const LV_TEXT = ['name', 'vendor', 'spec', 'title', 'manager', 'flag'];
 const LV_COLS = [
   ['name', 'Nombre'], ['role', 'Rol'], ['company', 'Compañía'], ['vendor', 'Proveedor'], ['team', 'Equipo'],
   ['spec', 'Especialidad'], ['skill', 'Skill'], ['title', 'Puesto'], ['manager', 'Jefe directo'], ['flag', 'Alerta']
@@ -1671,6 +1677,12 @@ function lvRows(){
     if(LV.filter === 'any' && !miss.length) return false;
     if(['role','skill','spec','team','vendor'].includes(LV.filter) && !miss.includes(LV.filter)) return false;
     if(LV.filter === 'flag' && !p.flag) return false;
+    for(const k in LV.cf){
+      const f = LV.cf[k]; if(!f) continue;
+      if(LV_TEXT.includes(k)){ const v = (p[k] || '').toString().toLowerCase(); if(f === '∅' ? v : !v.includes(f.toLowerCase())) return false; continue; }
+      const v = k === 'role' ? (hasRole(p) ? p.role : '') : k === 'company' ? (p.company || HOME) : k === 'skill' ? String(skillOf(p) || '') : k === 'team' ? (p.team || UN) : '';
+      if(f === '∅' ? v !== '' : v !== f) return false;
+    }
     if(!q) return true;
     return [p.name, p.title, p.manager, p.spec, p.vendor, p.company, hasRole(p) ? role(p.role).label : '', teamName(p.team)]
       .some(x => (x || '').toLowerCase().includes(q));
@@ -1685,32 +1697,32 @@ function lvRows(){
   });
   return list;
 }
-function renderList(){
-  const v = $('#listView');
-  if(!LV.open){ v.hidden = true; return; }
-  // no rearmar la tabla mientras alguien escribe en ella
-  const ae = document.activeElement;
-  if(ae && v.contains(ae) && ae.closest('tbody') && ae.tagName === 'INPUT'){ LV.pending = true; return; }
-  v.hidden = false;
-  const rows = lvRows();
+function lvCfActive(){ return Object.keys(LV.cf).some(k => LV.cf[k]); }
+function lvCountHtml(rows){
   const sinRol = S.people.filter(p => !hasRole(p)).length;
-  const filters = [['all', 'Todos'], ['any', 'Con algún dato faltante'], ['role', 'Sin rol'], ['skill', 'Sin skill'], ['spec', 'Sin especialidad'], ['team', 'Sin equipo'], ['vendor', 'Terceros sin proveedor'], ['flag', 'Con alerta (para revisar)']];
-  const focusId = ae && ae.id;
-  $('#lvBar').innerHTML =
-    '<h2>Lista de personas</h2>' +
-    '<input type="search" id="lvSearch" placeholder="Buscar nombre, equipo, rol…" value="' + esc(LV.q) + '" aria-label="Buscar en la lista">' +
-    '<select id="lvFilter" aria-label="Filtrar">' + filters.map(([k, l]) => '<option value="' + k + '"' + (LV.filter === k ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
-    '<span class="count">' + rows.length + ' de ' + S.people.length + ' personas' + (sinRol ? ' · <b style="color:var(--warn)">' + sinRol + ' sin rol</b>' : '') + '</span>' +
-    (LV.fTeam || LV.fRole ? '<span class="lv-chip">' + esc([LV.fTeam ? teamName(LV.fTeam) : '', LV.fRole ? role(LV.fRole).label : ''].filter(Boolean).join(' · ')) + '<button data-act="list-unfilter" aria-label="Quitar filtro">✕</button></span>' : '') +
-    '<button class="btn lv-close" data-act="list-close">' + (LV.back ? 'Volver al tablero' : 'Cerrar') + '</button>';
+  return rows.length + ' de ' + S.people.length + ' personas' + (sinRol ? ' · <b style="color:var(--warn)">' + sinRol + ' sin rol</b>' : '');
+}
+function lvFilterRow(){
+  const sel = (k, opts) => '<select id="lvf-' + k + '" data-lvf="' + k + '" aria-label="Filtrar por ' + k + '"' + (LV.cf[k] ? ' class="on"' : '') + '><option value="">Todos</option>' +
+    opts.map(([v, l]) => '<option value="' + esc(v) + '"' + (LV.cf[k] === v ? ' selected' : '') + '>' + esc(l) + '</option>').join('') + '</select>';
+  const teamIds = [...new Set(S.people.map(p => p.team || UN))];
+  const cell = k => {
+    if(LV_TEXT.includes(k)) return '<input type="search" id="lvf-' + k + '" data-lvf="' + k + '" value="' + esc(LV.cf[k] || '') + '" placeholder="Filtrar…" aria-label="Filtrar por ' + k + '"' + (LV.cf[k] ? ' class="on"' : '') + '>';
+    if(k === 'role') return sel(k, S.roles.map(r => [r.id, r.label]).concat([['∅', 'Sin rol']]));
+    if(k === 'company') return sel(k, COMPANIES.map(c => [c, c]));
+    if(k === 'skill') return sel(k, ['5','4','3','2','1'].map(v => [v, v]).concat([['∅', 'Sin evaluar']]));
+    if(k === 'team') return sel(k, teamIds.map(id => [id, teamName(id)]).sort((a, b) => a[1].localeCompare(b[1], 'es')));
+    return '';
+  };
+  return '<tr class="lv-filters">' + LV_COLS.map(([k]) => '<th scope="col">' + cell(k) + '</th>').join('') + '</tr>';
+}
+function lvBodyHtml(rows){
   const roleOpts = sel => '<option value=""' + (hasRole({role:sel}) ? '' : ' selected') + '>— Sin rol —</option>' + roleOptions(sel);
   const coOpts = sel => COMPANIES.map(c => '<option' + (c === (sel || HOME) ? ' selected' : '') + '>' + c + '</option>').join('');
   const skOpts = sel => [0,1,2,3,4,5].map(k => '<option value="' + k + '"' + (sel === k ? ' selected' : '') + '>' + (k || '—') + '</option>').join('');
   const vendors = [...new Set(S.people.map(x => x.vendor).filter(Boolean))].sort();
   const specs = [...new Set(S.people.map(x => x.spec).filter(Boolean))].sort();
-  $('#lvTable').innerHTML = '<thead><tr>' + LV_COLS.map(([k, l]) =>
-      '<th scope="col" aria-sort="' + (LV.sort === k ? (LV.dir > 0 ? 'ascending' : 'descending') : 'none') + '"><button data-act="list-sort" data-k="' + k + '">' + l + (LV.sort === k ? (LV.dir > 0 ? ' ▲' : ' ▼') : '') + '</button></th>').join('') + '</tr></thead><tbody>' +
-    (rows.length ? rows.map(p => {
+  return (rows.length ? rows.map(p => {
       const miss = lvMissing(p), cls = k => miss.includes(k) ? ' class="miss"' : '';
       const id = p.id, inp = (k, extra) => '<input id="lv-' + k + '-' + id + '" data-lv="' + k + '" data-pid="' + id + '" value="' + esc(p[k] || '') + '" aria-label="' + k + ' de ' + esc(p.name) + '"' + (extra || '') + '>';
       return '<tr>' +
@@ -1723,10 +1735,45 @@ function renderList(){
         '<td class="sk-cell' + (miss.includes('skill') ? ' miss' : '') + '"><select id="lv-skill-' + id + '" data-lv="skill" data-pid="' + id + '" aria-label="Skill de ' + esc(p.name) + '">' + skOpts(skillOf(p)) + '</select></td>' +
         '<td>' + inp('title') + '</td>' +
         '<td>' + inp('manager') + '</td><td' + (p.flag ? ' class="flag-cell"' : '') + '>' + inp('flag') + '</td></tr>';
-    }).join('') : '<tr><td colspan="10" class="lv-empty">No hay personas con ese filtro.</td></tr>') + '</tbody>';
+    }).join('') : '<tr><td colspan="10" class="lv-empty">No hay personas con ese filtro.</td></tr>');
+}
+// actualiza solo las filas y el contador (para no perder lo que se está escribiendo en los filtros)
+function renderListBody(){
+  const v = $('#listView'); if(!LV.open || v.hidden) return renderList();
+  const rows = lvRows();
+  const tb = $('#lvTable tbody'); if(!tb) return renderList();
+  tb.innerHTML = lvBodyHtml(rows);
+  $('#lvCount').innerHTML = lvCountHtml(rows);
+  $('#lvClearCf').hidden = !lvCfActive();
+  document.querySelectorAll('[data-lvf]').forEach(x => x.classList.toggle('on', !!LV.cf[x.dataset.lvf]));
+}
+function renderList(){
+  const v = $('#listView');
+  if(!LV.open){ v.hidden = true; return; }
+  // no rearmar la tabla mientras alguien escribe en ella
+  const ae = document.activeElement;
+  if(ae && v.contains(ae) && ae.closest('tbody') && ae.tagName === 'INPUT'){ LV.pending = true; return; }
+  v.hidden = false;
+  const rows = lvRows();
+  const sinRol = S.people.filter(p => !hasRole(p)).length;
+  const filters = [['all', 'Todos'], ['any', 'Con algún dato faltante'], ['role', 'Sin rol'], ['skill', 'Sin skill'], ['spec', 'Sin especialidad'], ['team', 'Sin equipo'], ['vendor', 'Terceros sin proveedor'], ['flag', 'Con alerta (para revisar)']];
+  const focusId = ae && ae.id;
+  let caret = null; try { caret = ae && ae.selectionStart; } catch(e){}
+  $('#lvBar').innerHTML =
+    '<h2>Lista de personas</h2>' +
+    '<input type="search" id="lvSearch" placeholder="Buscar nombre, equipo, rol…" value="' + esc(LV.q) + '" aria-label="Buscar en la lista">' +
+    '<select id="lvFilter" aria-label="Filtrar">' + filters.map(([k, l]) => '<option value="' + k + '"' + (LV.filter === k ? ' selected' : '') + '>' + l + '</option>').join('') + '</select>' +
+    '<span class="count" id="lvCount">' + lvCountHtml(rows) + '</span>' +
+    '<button class="btn" data-act="list-clear-cf" id="lvClearCf"' + (lvCfActive() ? '' : ' hidden') + '>Limpiar filtros de columnas</button>' +
+    (LV.fTeam || LV.fRole ? '<span class="lv-chip">' + esc([LV.fTeam ? teamName(LV.fTeam) : '', LV.fRole ? role(LV.fRole).label : ''].filter(Boolean).join(' · ')) + '<button data-act="list-unfilter" aria-label="Quitar filtro">✕</button></span>' : '') +
+    '<button class="btn lv-close" data-act="list-close">' + (LV.back ? 'Volver al tablero' : 'Cerrar') + '</button>';
+  const vendors = [...new Set(S.people.map(x => x.vendor).filter(Boolean))].sort();
+  const specs = [...new Set(S.people.map(x => x.spec).filter(Boolean))].sort();
+  $('#lvTable').innerHTML = '<thead><tr>' + LV_COLS.map(([k, l]) =>
+      '<th scope="col" aria-sort="' + (LV.sort === k ? (LV.dir > 0 ? 'ascending' : 'descending') : 'none') + '"><button data-act="list-sort" data-k="' + k + '">' + l + (LV.sort === k ? (LV.dir > 0 ? ' ▲' : ' ▼') : '') + '</button></th>').join('') + '</tr>' + lvFilterRow() + '</thead><tbody>' + lvBodyHtml(rows) + '</tbody>';
   $('#lvLists').innerHTML = '<datalist id="lvVendors">' + vendors.map(x => '<option value="' + esc(x) + '">').join('') + '</datalist>' +
     '<datalist id="lvSpecs">' + specs.map(x => '<option value="' + esc(x) + '">').join('') + '</datalist>';
-  if(focusId){ const el = document.getElementById(focusId); if(el && v.contains(el)) el.focus(); }
+  if(focusId){ const el = document.getElementById(focusId); if(el && v.contains(el)){ el.focus(); try { if(caret != null) el.setSelectionRange(caret, caret); } catch(e){} } }
 }
 function lvSave(el){
   const p = S.people.find(x => x.id === el.dataset.pid); if(!p) return;
@@ -1741,9 +1788,13 @@ function lvSave(el){
 $('#listView').addEventListener('change', e => {
   const el = e.target;
   if(el.id === 'lvFilter'){ LV.filter = el.value; renderList(); return; }
+  if(el.dataset && el.dataset.lvf){ if(el.tagName === 'SELECT'){ LV.cf[el.dataset.lvf] = el.value; renderListBody(); } return; }
   if(el.dataset && el.dataset.lv) lvSave(el);
 });
-$('#listView').addEventListener('input', e => { if(e.target.id === 'lvSearch'){ LV.q = e.target.value; renderList(); } });
+$('#listView').addEventListener('input', e => {
+  if(e.target.id === 'lvSearch'){ LV.q = e.target.value; renderListBody(); }
+  else if(e.target.dataset && e.target.dataset.lvf && e.target.tagName === 'INPUT'){ LV.cf[e.target.dataset.lvf] = e.target.value.trim(); renderListBody(); }
+});
 $('#listView').addEventListener('keydown', e => {
   if(e.key === 'Enter' && e.target.dataset && e.target.dataset.lv && e.target.tagName === 'INPUT'){ e.preventDefault(); e.target.blur(); }
   if(e.key === 'Escape' && !dlg.open){ LV.open = false; LV.fTeam = LV.fRole = null; if(LV.back){ LV.back = false; DB_V.open = true; } renderList(); renderDash(); }
@@ -2378,6 +2429,7 @@ document.addEventListener('click', e => {
   else if(act === 'list-open'){ LV.open = true; renderList(); const s = $('#lvSearch'); if(s) s.focus(); }
   else if(act === 'list-close'){ LV.open = false; LV.fTeam = LV.fRole = null; if(LV.back){ LV.back = false; DB_V.open = true; } renderList(); renderDash(); }
   else if(act === 'list-unfilter'){ LV.fTeam = LV.fRole = null; renderList(); }
+  else if(act === 'list-clear-cf'){ LV.cf = {}; renderList(); }
   else if(act === 'dash-open'){ DB_V.open = true; renderDash(); $('#dashView').focus(); }
   else if(act === 'dash-hide-c'){ const cur = dbHiddenC().slice(); commit(() => { S.settings.dashHideC = cur.concat(el.dataset.tid); }); }
   else if(act === 'dash-show-c'){ const cur = dbHiddenC().slice(); commit(() => { S.settings.dashHideC = cur.filter(x => x !== el.dataset.tid); }); }
