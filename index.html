@@ -590,7 +590,8 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none!impor
 .move-all-row{display:flex;gap:8px}
 .move-all-row select{flex:1 1 auto;min-width:0}
 /* sin barra de desplazamiento horizontal: el organigrama se mueve arrastrando con el mouse o con Shift + rueda */
-.tree-wrap::-webkit-scrollbar:horizontal{height:0;display:none}
+.tree-wrap{scrollbar-width:none;-ms-overflow-style:none}
+.tree-wrap::-webkit-scrollbar{display:none;width:0;height:0}
 body{overflow-x:clip}
 </style>
 </head>
