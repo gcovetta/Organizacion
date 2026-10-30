@@ -579,7 +579,9 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none!impor
 .pgrp.drop{border-color:var(--accent);box-shadow:0 0 0 3px #4B3FC91F}
 .pgrp-head{display:flex;align-items:center;gap:8px;font-size:13px}
 .pgrp-head .count{font-weight:800;font-size:12px;padding:1px 8px;border-radius:999px;background:var(--bg)}
-.pgrp-head .mini,.pgrp-head .pgrp-add{margin-left:auto}
+.pgrp-head .mini:not(.pgrp-tog),.pgrp-head .pgrp-add{margin-left:auto}
+.pgrp-tog{width:26px;height:26px;min-height:0;padding:0}
+.pgrp.collapsed{padding-bottom:10px}
 .pgrp-add{min-height:30px;padding:0 10px;font-size:12px}
 [data-theme=dark] .pgrp{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.14)}
 [data-theme=dark] .pgrp.loose{background:transparent}
@@ -1553,14 +1555,17 @@ function groupedList(pk, m, drop, co){
   const dz = ' data-drop="' + drop + '"' + (co ? ' data-co="' + co + '"' : '');
   const inG = g => m.filter(p => p.pgrp === g);
   const loose = m.filter(p => !p.pgrp || !gs.includes(p.pgrp));
+  const isCol = g => !!(S.collapsed && S.collapsed['g:' + pk + ':' + g]);
+  const tog = (g, label) => '<button class="mini pgrp-tog" data-act="pgrp-toggle" data-key="' + esc('g:' + pk + ':' + g) + '" aria-expanded="' + !isCol(g) + '" aria-label="' + (isCol(g) ? 'Desplegar ' : 'Colapsar ') + esc(label) + '" title="' + (isCol(g) ? 'Desplegar' : 'Colapsar') + '">' + (isCol(g) ? ICON_DOWN : ICON_UP) + '</button>';
+  const list = (g, arr, emptyTxt) => isCol(g) ? '' : '<div class="pool-list">' + (arr.length ? arr.map(p => chip(p, true)).join('') : '<span class="hint">' + emptyTxt + '</span>') + '</div>';
   return '<div class="pgrps">' + gs.map((g, i) => { const gm = inG(g);
-      return '<div class="pgrp"' + dz + ' data-grp="' + esc(g) + '"><div class="pgrp-head"><b>' + esc(g) + '</b><span class="count">' + gm.length + '</span>' +
+      return '<div class="pgrp' + (isCol(g) ? ' collapsed' : '') + '"' + dz + ' data-grp="' + esc(g) + '"><div class="pgrp-head">' + tog(g, g) + '<b>' + esc(g) + '</b><span class="count">' + gm.length + '</span>' +
         '<button class="mini" data-act="pgrp-edit" data-pk="' + pk + '" data-gi="' + i + '" aria-label="Editar grupo ' + esc(g) + '" title="Renombrar o eliminar">' + ICON_EDIT + '</button></div>' +
-        '<div class="pool-list">' + (gm.length ? gm.map(p => chip(p, true)).join('') : '<span class="hint">Arrastrá personas acá</span>') + '</div></div>';
+        list(g, gm, 'Arrastrá personas acá') + '</div>';
     }).join('') +
-    '<div class="pgrp loose"' + dz + ' data-grp=""><div class="pgrp-head"><b>' + (gs.length ? 'Sin grupo' : 'Personas') + '</b><span class="count">' + loose.length + '</span>' +
+    '<div class="pgrp loose' + (isCol('') ? ' collapsed' : '') + '"' + dz + ' data-grp=""><div class="pgrp-head">' + tog('', gs.length ? 'Sin grupo' : 'Personas') + '<b>' + (gs.length ? 'Sin grupo' : 'Personas') + '</b><span class="count">' + loose.length + '</span>' +
       '<button class="btn pgrp-add" data-act="pgrp-add" data-pk="' + pk + '">+ Grupo</button></div>' +
-      '<div class="pool-list">' + (loose.length ? loose.map(p => chip(p, true)).join('') : '<span class="hint">Vacío</span>') + '</div></div>' +
+      list('', loose, 'Vacío') + '</div>' +
   '</div>';
 }
 function pgroupDialog(pk, gi){
@@ -2336,11 +2341,12 @@ document.addEventListener('click', e => {
   else if(act === 'collapse-all'){ S.expanded = {}; save(); render(); }
   else if(act === 'compact'){ const t = S.teams.find(x => x.id === tid); if(t){ compactUI[tid] = !isCompact(t); try { localStorage.setItem(KEY + '-compact', JSON.stringify(compactUI)); } catch(e){} render(); } }
   else if(act === 'collapse'){ S.collapsed = S.collapsed || {}; if(S.collapsed[tid]) delete S.collapsed[tid]; else S.collapsed[tid] = true; save(); render(); }
-  else if(act === 'fold-all'){ S.collapsed = {}; S.teams.forEach(t => S.collapsed[t.id] = true); save(); render(); }
-  else if(act === 'unfold-all'){ S.collapsed = {}; save(); render(); }
+  else if(act === 'fold-all'){ S.collapsed = Object.fromEntries(Object.entries(S.collapsed || {}).filter(([k]) => k.startsWith('g:'))); S.teams.forEach(t => S.collapsed[t.id] = true); save(); render(); }
+  else if(act === 'unfold-all'){ S.collapsed = Object.fromEntries(Object.entries(S.collapsed || {}).filter(([k]) => k.startsWith('g:'))); save(); render(); }
   else if(act === 'edit-person'){ const p = S.people.find(x => x.id === el.dataset.pid); if(p) personDialog(p); }
   else if(act === 'add-person') personDialog(null, el.dataset.co, el.dataset.team);
   else if(act === 'pgrp-add') pgroupDialog(el.dataset.pk, null);
+  else if(act === 'pgrp-toggle'){ const k = el.dataset.key; S.collapsed = S.collapsed || {}; if(S.collapsed[k]) delete S.collapsed[k]; else S.collapsed[k] = true; save(); renderPool(); }
   else if(act === 'pgrp-edit') pgroupDialog(el.dataset.pk, +el.dataset.gi);
   else if(act === 'edit-team') teamDialog(S.teams.find(x => x.id === tid));
   else if(act === 'list-open'){ LV.open = true; renderList(); const s = $('#lvSearch'); if(s) s.focus(); }
