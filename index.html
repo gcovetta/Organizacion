@@ -1535,8 +1535,10 @@ function teamCard(t){
         }
       }
       h += aboutBlock(t, exp);
-      const sp = Object.keys(a.specs).sort();
-      if(sp.length) h += '<div class="spec-line">Especialidad:' + sp.map(k => '<span class="spec-tag">' + esc(k) + ' · ' + a.specs[k] + '</span>').join('') + '</div>';
+      // roles de la gente del equipo (el puesto de cada persona, p. ej. Cloud Architect, DevOps Engineer)
+      const rt = {}; a.m.forEach(p => { const k = (p.title || '').trim(); if(k) rt[k] = (rt[k] || 0) + 1; });
+      const rk = Object.keys(rt).sort((x, y) => rt[y] - rt[x] || x.localeCompare(y, 'es'));
+      if(rk.length) h += '<div class="spec-line">Roles:' + rk.map(k => '<span class="spec-tag">' + esc(k) + ' · ' + rt[k] + '</span>').join('') + '</div>';
       h += skillLine(t, a, kids);
       if(a.warns.length) h += '<div class="warns">' + a.warns.map(w => '<span class="warn-pill">' + esc(w) + '</span>').join('') + '</div>';
       if(exp){
