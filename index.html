@@ -593,6 +593,14 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none!impor
 .tree-wrap{scrollbar-width:none;-ms-overflow-style:none}
 .tree-wrap::-webkit-scrollbar{display:none;width:0;height:0}
 body{overflow-x:clip}
+/* ---- personas que dependen directo del líder de tribu ---- */
+.direct-box{display:flex;flex-direction:column;gap:8px;padding:10px 14px;border-radius:12px;border:2px solid var(--ink);background:var(--surface);min-width:320px;max-width:640px}
+.direct-box.empty{border-style:dashed;border-color:#B9B9CC}
+.direct-box.drop{border-color:var(--accent);box-shadow:0 0 0 4px #4B3FC91F}
+.direct-head{display:flex;align-items:center;gap:8px;font-size:13px}
+.direct-head .count{font-weight:800;font-size:12px;padding:1px 8px;border-radius:999px;background:var(--bg)}
+.direct-head .pgrp-add{margin-left:auto}
+[data-theme=dark] .direct-box{border-color:#5A5A72}
 </style>
 </head>
 <body>
@@ -726,6 +734,7 @@ const MIRA = 'mira'; // en la mira: gente que estamos mirando sumar, no cuenta e
 const BAJA = 'baja'; // Personal bajas: no cuenta en el total de MCH
 const DUDA = 'duda'; // TMA en duda: no cuenta en el total de MCH
 const OFF_TEAMS = [PARK, MIRA, BAJA, DUDA]; // grupos fuera de la estructura
+const DIRECT = 'direct'; // personas sin equipo a cargo que dependen directo del líder de tribu (cuentan en la estructura)
 const HOME = 'Personal', EXT = 'TMA';
 const THIRD = 'Terceros';
 const COMPANIES = [HOME, EXT, THIRD];
@@ -797,7 +806,7 @@ function normalize(d){
   b.migrations = d.migrations || [];
   b.collapsed = d.collapsed || {};
   const teamIds = new Set(b.teams.map(t => t.id));
-  b.people.forEach(p => { if(!teamIds.has(p.team) && !OFF_TEAMS.includes(p.team)) p.team = UN; if(!p.id) p.id = uid('p'); if(!COMPANIES.includes(p.company)) p.company = HOME; });
+  b.people.forEach(p => { if(!teamIds.has(p.team) && !OFF_TEAMS.includes(p.team) && p.team !== DIRECT) p.team = UN; if(!p.id) p.id = uid('p'); if(!COMPANIES.includes(p.company)) p.company = HOME; });
   b.teams.forEach(t => { if(t.lead){ t.parent = null; return; } if(t.parent === FLOAT) return; if(!t.parent || !teamIds.has(t.parent) || t.parent === t.id) t.parent = null; });
   // corta ciclos si el archivo viene roto
   b.teams.forEach(t => { const seen = new Set([t.id]); let p = t.parent;
@@ -1390,6 +1399,11 @@ function renderTree(){
   let h = '<button class="root" data-act="settings" title="Editar tribu">' +
     '<span class="av">' + esc(initials(leadName)) + '</span>' +
     '<span><b>' + esc(leadName) + '</b><small>' + esc(S.tribe.name || '') + ' · ' + ourPeople().filter(p => p.company !== THIRD).length + ' personas' + (ourPeople().some(p => p.company === THIRD) ? ' + ' + ourPeople().filter(p => p.company === THIRD).length + (ourPeople().filter(p => p.company === THIRD).length === 1 ? ' tercero' : ' terceros') : '') + '</small></span></button>';
+  { const dm = membersOf(DIRECT);
+    h += '<div class="vline" style="height:14px"></div><div class="direct-box' + (dm.length ? '' : ' empty') + '" data-drop="' + DIRECT + '" aria-label="Dependen directo de ' + esc(leadName) + '">' +
+      '<div class="direct-head"><b>Dependen directo de ' + esc(leadName) + '</b><span class="count">' + dm.length + '</span>' +
+      '<button class="btn pgrp-add" data-act="add-person" data-team="' + DIRECT + '">+ Persona</button></div>' +
+      '<div class="pool-list">' + (dm.length ? dm.map(p => chip(p, true)).join('') : '<span class="hint">Sin equipo a cargo · arrastrá a alguien acá o agregalo con el botón</span>') + '</div></div>'; }
   if(roots.length){
     const totalLeaves = roots.reduce((a, t) => a + leaves(t.id), 0);
     h += '<div class="vline"></div>' + renderLevel(roots, totalLeaves * 340);
@@ -1632,7 +1646,7 @@ const LV_COLS = [
   ['spec', 'Especialidad'], ['skill', 'Skill'], ['title', 'Puesto'], ['manager', 'Jefe directo'], ['flag', 'Alerta']
 ];
 function hasRole(p){ return !!p.role && S.roles.some(r => r.id === p.role); }
-function teamName(id){ return id === UN ? 'Sin asignar' : id === PARK ? 'Parking lot' : id === MIRA ? 'En la mira' : id === BAJA ? 'Personal bajas' : id === DUDA ? 'TMA en duda' : ((S.teams.find(t => t.id === id) || {}).name || 'Sin asignar'); }
+function teamName(id){ return id === UN ? 'Sin asignar' : id === DIRECT ? 'Directo de ' + (S.tribe.lead || 'Líder de tribu') : id === PARK ? 'Parking lot' : id === MIRA ? 'En la mira' : id === BAJA ? 'Personal bajas' : id === DUDA ? 'TMA en duda' : ((S.teams.find(t => t.id === id) || {}).name || 'Sin asignar'); }
 function lvMissing(p){
   const m = [];
   if(!hasRole(p)) m.push('role');
@@ -2075,6 +2089,7 @@ function openDialog(title, body, foot, onSubmit, onOpen){
 function roleOptions(sel){ return S.roles.map(r => '<option value="' + esc(r.id) + '"' + (r.id === sel ? ' selected' : '') + '>' + esc(r.label) + '</option>').join(''); }
 function teamOptions(sel){
   return S.teams.map(t => '<option value="' + t.id + '"' + (t.id === sel ? ' selected' : '') + '>' + esc(t.name) + '</option>').join('') +
+    '<option value="' + DIRECT + '"' + (sel === DIRECT ? ' selected' : '') + '>Depende directo de ' + esc(S.tribe.lead || 'Líder de tribu') + ' (sin equipo a cargo)</option>' +
     '<option value="' + UN + '"' + (sel === UN ? ' selected' : '') + '>Sin asignar</option>' +
     '<option value="' + MIRA + '"' + (sel === MIRA ? ' selected' : '') + '>En la mira (no cuenta)</option>' +
     '<option value="' + PARK + '"' + (sel === PARK ? ' selected' : '') + '>Parking lot (no cuenta)</option>' +
@@ -2125,6 +2140,7 @@ function moveDests(t){
   o.push(['pool|' + DUDA + '||', 'TMA en duda (sin grupo)']);
   pgroups('per').forEach(g => o.push(['pool|u|' + HOME + '|' + g, 'Sin asignar · Personal › ' + g]));
   o.push(['pool|u|' + HOME + '|', 'Sin asignar · Personal' + (pgroups('per').length ? ' (sin grupo)' : '')]);
+  o.push(['pool|' + DIRECT + '||', 'Directo de ' + (S.tribe.lead || 'Líder de tribu')]);
   o.push(['pool|' + MIRA + '||', 'En la mira']);
   o.push(['pool|' + PARK + '||', 'Parking lot']);
   S.teams.filter(x => x.id !== t.id).forEach(x => o.push(['team|' + x.id, 'Equipo: ' + x.name]));
@@ -2418,7 +2434,7 @@ document.addEventListener('drop', e => {
   const co = zone.dataset.co;
   const grp = zone.dataset.grp; // undefined fuera de los grupos
   if(!p || (p.team === team && (!co || p.company === co) && (grp === undefined ? !p.pgrp : (p.pgrp || '') === grp))) return;
-  const dest = team === MIRA ? 'En la mira' : team === PARK ? 'Parking lot' : team === BAJA ? 'Personal bajas' : team === DUDA ? 'TMA en duda' : team === UN ? 'Sin asignar · ' + co : (S.teams.find(t => t.id === team) || {}).name;
+  const dest = team === DIRECT ? 'Directo de ' + (S.tribe.lead || 'Líder de tribu') : team === MIRA ? 'En la mira' : team === PARK ? 'Parking lot' : team === BAJA ? 'Personal bajas' : team === DUDA ? 'TMA en duda' : team === UN ? 'Sin asignar · ' + co : (S.teams.find(t => t.id === team) || {}).name;
   commit(() => { p.team = team; if(co) p.company = co; if(grp) p.pgrp = grp; else delete p.pgrp; });
   toast(p.name + ' → ' + dest + (grp ? ' · ' + grp : ''));
 });
