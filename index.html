@@ -550,6 +550,12 @@ body.locked .layout{display:none!important}
 .stat.area > span:nth-child(2){font-size:22px;font-weight:800}
 .stat.area .area-split{font-size:12px;font-weight:700;color:var(--muted);margin-top:2px}
 [data-theme=dark] .stat.area{border-color:#3B3466}
+.stat.area.mch{border-color:var(--accent)}
+.mch-nums{display:flex;gap:16px;align-items:flex-end}
+.mch-nums > div{display:flex;flex-direction:column}
+.mch-nums b{font-size:22px;font-weight:800;line-height:1.2}
+.mch-nums > div + div b{color:var(--muted)}
+.mch-nums small{font-size:11px;color:var(--muted);font-weight:600}
 .stat.area .area-split{display:flex;flex-wrap:wrap;gap:4px}
 .area-split b{font-weight:800;padding:1px 7px;border-radius:999px}
 .area-split .co-p{background:var(--co-home-bg);color:#1D6FA3}
@@ -1264,17 +1270,25 @@ const AREAS = [
   ['Cloud Pública', [/cloud publica/, /public cloud/], 'Cloud Pública']
 ];
 function areaStats(){
-  return AREAS.map(([label, res, desc]) => {
+  const split = (by, th) => '<small class="area-split"><b class="co-p">Personal ' + by(HOME) + '</b><b class="co-t">TMA ' + by(EXT) + '</b>' + (th ? '<b class="co-3">Terceros ' + th + '</b>' : '') + '</small>';
+  const all = new Set(), names = [];
+  const boxes = AREAS.map(([label, res, desc]) => {
     const roots = S.teams.filter(t => res.some(r => r.test(normName(t.name))));
     const ids = new Set();
     roots.forEach(t => { ids.add(t.id); descendants(t.id).forEach(id => ids.add(id)); });
     const m = S.people.filter(p => ids.has(p.team));
+    m.forEach(p => all.add(p));
+    if(roots.length) names.push(label);
     const by = c => m.filter(p => (p.company || HOME) === c).length;
-    const th = by(THIRD);
     const tip = roots.length ? 'Gente asignada a ' + roots.map(t => t.name).join(' + ') + ' y a los equipos que dependen de ellos.' : 'No encuentro un equipo llamado ' + desc + ' en el organigrama.';
-    return '<div class="stat area" title="' + esc(tip) + '"><span>' + esc(label) + '</span><span>' + (roots.length ? m.length : '—') + '</span>' +
-      '<small class="area-split"><b class="co-p">Personal ' + by(HOME) + '</b><b class="co-t">TMA ' + by(EXT) + '</b>' + (th ? '<b class="co-3">Terceros ' + th + '</b>' : '') + '</small></div>';
-  }).join('');
+    return '<div class="stat area" title="' + esc(tip) + '"><span>' + esc(label) + '</span><span>' + (roots.length ? m.length : '—') + '</span>' + split(by, by(THIRD)) + '</div>';
+  });
+  // MCH = Cloud Privada + Cloud Advisor + Cloud Pública (cada persona se cuenta una sola vez)
+  const mm = [...all], byM = c => mm.filter(p => (p.company || HOME) === c).length, thM = byM(THIRD);
+  const mch = '<div class="stat area mch" title="' + esc('Suma de ' + (names.join(' + ') || 'las áreas') + '.') + '"><span>MCH</span>' +
+    '<div class="mch-nums"><div><b>' + mm.length + '</b><small>con terceros</small></div><div><b>' + (mm.length - thM) + '</b><small>sin terceros</small></div></div>' +
+    split(byM, thM) + '</div>';
+  return mch + boxes.join('');
 }
 function roleStats(){
   const ppl = ourPeople(), cnt = {};
