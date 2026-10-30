@@ -530,6 +530,17 @@ body.locked .layout{display:none!important}
 .stat-group{display:flex;flex-direction:column;gap:6px;padding:6px 8px 8px;border:2px dashed #C9CBD8;border-radius:14px}
 .stat-group-label{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding:0 6px}
 .stat-group-row{display:flex;flex-wrap:wrap;gap:8px}
+/* ---- Personal bajas / TMA en duda ---- */
+.pool.baja{border-color:#7A7A90;background:#EFEFF4}
+.pool.baja .count{color:#3F4152}
+.pool.duda{border-color:#D99A1E;background:#FFF6E0}
+.pool.duda .count{color:#7A5200}
+.stat.baja{background:#EFEFF4}.stat.baja span{color:#3F4152}
+.stat.duda{background:#FFF6E0}.stat.duda span{color:#7A5200}
+[data-theme=dark] .pool.baja,[data-theme=dark] .stat.baja{background:#1E1F2A}
+[data-theme=dark] .pool.duda,[data-theme=dark] .stat.duda{background:#2A2110}
+[data-theme=dark] .stat.baja span,[data-theme=dark] .pool.baja .count{color:#C9CBD8}
+[data-theme=dark] .stat.duda span,[data-theme=dark] .pool.duda .count{color:#F2C46B}
 </style>
 </head>
 <body>
@@ -602,6 +613,8 @@ body.locked .layout{display:none!important}
   <section class="pool" id="poolHome" data-drop="u" data-co="Personal" aria-label="Sin asignar de Personal"></section>
   <section class="pool ext" id="poolExt" data-drop="u" data-co="TMA" aria-label="Sin asignar de TMA"></section>
   <section class="pool third" id="poolThird" data-drop="u" data-co="Terceros" aria-label="Sin asignar de terceros"></section>
+  <section class="pool baja" id="poolBaja" data-drop="baja" aria-label="Personal bajas"></section>
+  <section class="pool duda" id="poolDuda" data-drop="duda" aria-label="TMA en duda"></section>
   <section class="pool mira" id="poolMira" data-drop="mira" aria-label="En la mira"></section>
   <section class="pool park" id="poolPark" data-drop="park" aria-label="Parking lot"></section>
 </div>
@@ -657,6 +670,9 @@ const KEY = 'organigrama-equipos-v1';
 const UN = 'u';
 const PARK = 'park'; // parking lot: gente apartada, no cuenta en la estructura
 const MIRA = 'mira'; // en la mira: gente que estamos mirando sumar, no cuenta en la estructura
+const BAJA = 'baja'; // Personal bajas: no cuenta en el total de MCH
+const DUDA = 'duda'; // TMA en duda: no cuenta en el total de MCH
+const OFF_TEAMS = [PARK, MIRA, BAJA, DUDA]; // grupos fuera de la estructura
 const HOME = 'Personal', EXT = 'TMA';
 const THIRD = 'Terceros';
 const COMPANIES = [HOME, EXT, THIRD];
@@ -728,7 +744,7 @@ function normalize(d){
   b.migrations = d.migrations || [];
   b.collapsed = d.collapsed || {};
   const teamIds = new Set(b.teams.map(t => t.id));
-  b.people.forEach(p => { if(!teamIds.has(p.team) && p.team !== PARK && p.team !== MIRA) p.team = UN; if(!p.id) p.id = uid('p'); if(!COMPANIES.includes(p.company)) p.company = HOME; });
+  b.people.forEach(p => { if(!teamIds.has(p.team) && !OFF_TEAMS.includes(p.team)) p.team = UN; if(!p.id) p.id = uid('p'); if(!COMPANIES.includes(p.company)) p.company = HOME; });
   b.teams.forEach(t => { if(t.lead){ t.parent = null; return; } if(t.parent === FLOAT) return; if(!t.parent || !teamIds.has(t.parent) || t.parent === t.id) t.parent = null; });
   // corta ciclos si el archivo viene roto
   b.teams.forEach(t => { const seen = new Set([t.id]); let p = t.parent;
@@ -993,7 +1009,7 @@ function countedTeams(){
   heads.forEach(h => { if(S.teams.some(t => t.id === h.team)) descendants(h.team).forEach(id => set.add(id)); });
   return {heads, teams: ours.filter(t => set.has(t.id))};
 }
-function ourPeople(){ return S.people.filter(p => p.team !== PARK && p.team !== MIRA && !isOutside(p.team)); }
+function ourPeople(){ return S.people.filter(p => !OFF_TEAMS.includes(p.team) && !isOutside(p.team)); }
 function descendants(id){ const out = []; childrenOf(id).forEach(c => { out.push(c.id); out.push(...descendants(c.id)); }); return out; }
 function isStack(id){ return false; } // sub-equipos siempre uno al lado del otro
 function leaves(id){ const ch = childrenOf(id); return (!ch.length || isStack(id) || (S.collapsed || {})[id]) ? 1 : ch.reduce((a, c) => a + leaves(c.id), 0); }
@@ -1208,6 +1224,10 @@ function renderStats(){
     '<div class="stat-group" role="group" aria-label="No suman"><span class="stat-group-label">No suman</span><div class="stat-group-row">' +
       '<div class="stat mira"><span>En la mira</span><span>' + membersOf(MIRA).length + '</span></div>' +
       stat('Variación Organizacional', S.people.filter(p => isOutside(p.team)).length, false, 'Personas en las estructuras aparte (a la derecha del organigrama, p. ej. B2B).') +
+    '</div></div>' +
+    '<div class="stat-group" role="group" aria-label="Bajas y dudas"><span class="stat-group-label">Bajas y dudas · no suman a MCH</span><div class="stat-group-row">' +
+      '<div class="stat baja"><span>Personal bajas</span><span>' + membersOf(BAJA).length + '</span></div>' +
+      '<div class="stat duda"><span>TMA en duda</span><span>' + membersOf(DUDA).length + '</span></div>' +
     '</div></div>' +
     stat('Parking lot · no cuenta', membersOf(PARK).length) +
     roleStats();
@@ -1460,6 +1480,13 @@ function renderPool(){
       '<button class="btn pool-add" data-act="add-person" data-co="' + co + '">+ Persona' + (co === EXT ? ' de TMA' : co === THIRD ? ' de tercero' : '') + '</button></div>' +
       '<div class="pool-list">' + (m.length ? m.map(p => chip(p, true)).join('') : '<span class="hint">Vacío</span>') + '</div>';
   });
+  [['#poolBaja', BAJA, 'Personal bajas', HOME, '+ Baja de Personal'], ['#poolDuda', DUDA, 'TMA en duda', EXT, '+ Persona de TMA en duda']].forEach(([sel, tid, title, co, btn]) => {
+    const m = membersOf(tid);
+    $(sel).innerHTML = '<div class="pool-head"><h2>' + title + '</h2><span class="count">' + m.length + '</span>' +
+      '<span class="hint">no suma al total de MCH · arrastrá gente acá</span>' +
+      '<button class="btn pool-add" data-act="add-person" data-team="' + tid + '" data-co="' + co + '">' + btn + '</button></div>' +
+      '<div class="pool-list">' + (m.length ? m.map(p => chip(p, true)).join('') : '<span class="hint">Vacío</span>') + '</div>';
+  });
   const mi = membersOf(MIRA);
   $('#poolMira').innerHTML = '<div class="pool-head"><h2 class="mira-title"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1.5v5M12 17.5v5M1.5 12h5M17.5 12h5"/></svg>En la mira</h2><span class="count">' + mi.length + '</span>' +
     '<span class="hint">gente que estamos mirando sumar · no cuenta en la estructura</span>' +
@@ -1478,7 +1505,7 @@ const LV_COLS = [
   ['spec', 'Especialidad'], ['skill', 'Skill'], ['title', 'Puesto'], ['manager', 'Jefe directo'], ['flag', 'Alerta']
 ];
 function hasRole(p){ return !!p.role && S.roles.some(r => r.id === p.role); }
-function teamName(id){ return id === UN ? 'Sin asignar' : id === PARK ? 'Parking lot' : id === MIRA ? 'En la mira' : ((S.teams.find(t => t.id === id) || {}).name || 'Sin asignar'); }
+function teamName(id){ return id === UN ? 'Sin asignar' : id === PARK ? 'Parking lot' : id === MIRA ? 'En la mira' : id === BAJA ? 'Personal bajas' : id === DUDA ? 'TMA en duda' : ((S.teams.find(t => t.id === id) || {}).name || 'Sin asignar'); }
 function lvMissing(p){
   const m = [];
   if(!hasRole(p)) m.push('role');
@@ -1764,7 +1791,7 @@ async function loadPrefs(){
 function prefLeaders(){
   const leadRoles = S.roles.filter(r => r.lead).map(r => r.id);
   const extra = S.settings.prefExtra || [], excl = S.settings.prefExclude || [];
-  return S.people.filter(p => (leadRoles.includes(p.role) || extra.includes(p.id)) && !excl.includes(p.id) && !isOutside(p.team) && p.team !== MIRA && p.team !== PARK)
+  return S.people.filter(p => (leadRoles.includes(p.role) || extra.includes(p.id)) && !excl.includes(p.id) && !isOutside(p.team) && !OFF_TEAMS.includes(p.team))
     .sort((a, b) => a.name.localeCompare(b.name, 'es'));
 }
 function prefTeams(){
@@ -1923,7 +1950,9 @@ function teamOptions(sel){
   return S.teams.map(t => '<option value="' + t.id + '"' + (t.id === sel ? ' selected' : '') + '>' + esc(t.name) + '</option>').join('') +
     '<option value="' + UN + '"' + (sel === UN ? ' selected' : '') + '>Sin asignar</option>' +
     '<option value="' + MIRA + '"' + (sel === MIRA ? ' selected' : '') + '>En la mira (no cuenta)</option>' +
-    '<option value="' + PARK + '"' + (sel === PARK ? ' selected' : '') + '>Parking lot (no cuenta)</option>';
+    '<option value="' + PARK + '"' + (sel === PARK ? ' selected' : '') + '>Parking lot (no cuenta)</option>' +
+    '<option value="' + BAJA + '"' + (sel === BAJA ? ' selected' : '') + '>Personal bajas (no suma a MCH)</option>' +
+    '<option value="' + DUDA + '"' + (sel === DUDA ? ' selected' : '') + '>TMA en duda (no suma a MCH)</option>';
 }
 
 function personDialog(p, co, team0){
@@ -2220,7 +2249,7 @@ document.addEventListener('drop', e => {
   zone.classList.remove('drop');
   const co = zone.dataset.co;
   if(!p || (p.team === team && (!co || p.company === co))) return;
-  const dest = team === MIRA ? 'En la mira' : team === PARK ? 'Parking lot' : team === UN ? 'Sin asignar · ' + co : (S.teams.find(t => t.id === team) || {}).name;
+  const dest = team === MIRA ? 'En la mira' : team === PARK ? 'Parking lot' : team === BAJA ? 'Personal bajas' : team === DUDA ? 'TMA en duda' : team === UN ? 'Sin asignar · ' + co : (S.teams.find(t => t.id === team) || {}).name;
   commit(() => { p.team = team; if(co) p.company = co; });
   toast(p.name + ' → ' + dest);
 });
