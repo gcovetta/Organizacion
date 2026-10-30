@@ -520,11 +520,11 @@ body.locked .drawer{display:none!important}
 .lv-table .flag-cell input{background:var(--warn-bg);color:var(--warn);font-weight:700}
 /* ---- columna izquierda: sin asignar, en la mira, parking ---- */
 .layout{display:flex;align-items:flex-start;padding-left:32px}
-.layout .board{flex:1 1 auto;min-width:0;padding-left:20px}
-.layout .pools{flex:0 0 340px;flex-direction:column;flex-wrap:nowrap;margin:0;position:sticky;top:16px;max-height:calc(100vh - 32px);overflow:auto;padding-bottom:16px}
+.layout .board{flex:1 1 auto;min-width:0;padding-left:8px}
+.layout .pools{flex:0 0 var(--pool-w,340px);flex-direction:column;flex-wrap:nowrap;margin:0;position:sticky;top:16px;max-height:calc(100vh - 32px);overflow:auto;padding-bottom:16px}
 .layout .pools .pool{flex:0 0 auto;margin:0}
 body.locked .layout{display:none!important}
-@media (max-width:900px){.layout{flex-direction:column;align-items:stretch;padding-left:0}.layout .board{padding-left:32px}.layout .pools{flex:none;order:2;position:static;max-height:none;overflow:visible;margin:0 32px 40px}}
+@media (max-width:900px){.col-resizer{display:none!important}.layout{flex-direction:column;align-items:stretch;padding-left:0}.layout .board{padding-left:32px}.layout .pools{flex:none;order:2;position:static;max-height:none;overflow:visible;margin:0 32px 40px}}
 @media (max-width:640px){.layout .board{padding-left:16px}.layout .pools{margin:0 16px 32px}}
 /* ---- grupo "No suman" en el resumen ---- */
 .stat-group{display:flex;flex-direction:column;gap:6px;padding:6px 8px 8px;border:2px dashed #C9CBD8;border-radius:14px}
@@ -550,6 +550,14 @@ body.locked .layout{display:none!important}
 .stat.area > span:nth-child(2){font-size:22px;font-weight:800}
 .stat.area .area-split{font-size:12px;font-weight:700;color:var(--muted);margin-top:2px}
 [data-theme=dark] .stat.area{border-color:#3B3466}
+/* ---- ancho de la columna izquierda (arrastrable) ---- */
+.col-resizer{flex:0 0 14px;align-self:flex-start;position:sticky;top:16px;height:calc(100vh - 32px);cursor:col-resize;touch-action:none;display:flex;justify-content:center;outline:none}
+.col-resizer::before{content:"";width:3px;height:100%;border-radius:3px;background:transparent;transition:background .15s}
+.col-resizer:hover::before,.col-resizer:focus-visible::before,.col-resizer.active::before{background:var(--accent)}
+body.resizing,body.resizing *{cursor:col-resize!important;user-select:none!important}
+/* ---- arrastrar el organigrama con el mouse ---- */
+.tree-wrap{cursor:grab}
+.tree-wrap.panning,.tree-wrap.panning *{cursor:grabbing!important;user-select:none!important}
 </style>
 </head>
 <body>
@@ -628,6 +636,7 @@ body.locked .layout{display:none!important}
   <section class="pool park" id="poolPark" data-drop="park" aria-label="Parking lot"></section>
   <aside class="float-panel" id="floatPanel" aria-label="Equipos sin ubicar"></aside>
 </div>
+<div class="col-resizer" id="colResizer" role="separator" aria-orientation="vertical" aria-label="Ancho de la columna izquierda" title="Arrastrá para ensanchar o angostar · doble clic para volver al ancho original" tabindex="0"></div>
 <div class="board">
   <div class="tree-wrap" id="treeWrap">
     <div class="tree" id="tree"></div>
@@ -2415,6 +2424,61 @@ window.addEventListener('resize', () => { clearTimeout(rzT); rzT = setTimeout(()
 
 render();
 if(autoFit) fitZoom(); else applyZoom();
+
+// ancho de la columna izquierda: se arrastra el separador (se recuerda en este navegador)
+(function(){
+  const layout = document.querySelector('.layout'), bar = $('#colResizer');
+  if(!layout || !bar) return;
+  const MIN = 220, MAX = 900, DEF = 340, KEYW = KEY + '-poolw';
+  const setW = w => { w = Math.round(Math.min(Math.max(w, MIN), Math.min(MAX, window.innerWidth - 300))); layout.style.setProperty('--pool-w', w + 'px'); return w; };
+  const save = w => { try { localStorage.setItem(KEYW, String(w)); } catch(e){} };
+  const refit = () => { if(autoFit) try { fitZoom(); } catch(e){} };
+  let saved = null; try { saved = parseInt(localStorage.getItem(KEYW), 10); } catch(e){}
+  if(saved) setW(saved);
+  let x0 = 0, w0 = DEF, cur = null;
+  bar.addEventListener('pointerdown', e => {
+    if(e.button !== 0) return;
+    e.preventDefault();
+    x0 = e.clientX; w0 = document.querySelector('.layout .pools').getBoundingClientRect().width; cur = w0;
+    bar.setPointerCapture(e.pointerId); bar.classList.add('active'); document.body.classList.add('resizing');
+  });
+  bar.addEventListener('pointermove', e => { if(cur == null) return; cur = setW(w0 + e.clientX - x0); });
+  const end = () => { if(cur == null) return; save(cur); cur = null; bar.classList.remove('active'); document.body.classList.remove('resizing'); refit(); };
+  bar.addEventListener('pointerup', end); bar.addEventListener('pointercancel', end);
+  bar.addEventListener('dblclick', () => { setW(DEF); save(DEF); refit(); });
+  bar.addEventListener('keydown', e => {
+    if(e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    const w = setW(document.querySelector('.layout .pools').getBoundingClientRect().width + (e.key === 'ArrowRight' ? 20 : -20));
+    save(w); refit();
+  });
+})();
+
+// mantener apretado el mouse sobre el organigrama y moverlo para desplazar la vista
+(function(){
+  const w = $('#treeWrap'); if(!w) return;
+  const SKIP = '[draggable="true"],button,a,input,select,textarea,label,summary,[contenteditable],[role="button"]';
+  let st = null, moved = false;
+  w.addEventListener('pointerdown', e => {
+    if(e.pointerType !== 'mouse' || e.button !== 0 || e.target.closest(SKIP)) return;
+    st = {x: e.clientX, y: e.clientY, l: w.scrollLeft, t: w.scrollTop, id: e.pointerId}; moved = false;
+  });
+  w.addEventListener('pointermove', e => {
+    if(!st) return;
+    const dx = e.clientX - st.x, dy = e.clientY - st.y;
+    if(!moved){
+      if(Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+      moved = true; w.classList.add('panning');
+      try { w.setPointerCapture(st.id); } catch(err){}
+    }
+    w.scrollLeft = st.l - dx; w.scrollTop = st.t - dy;
+    e.preventDefault();
+  });
+  const end = () => { if(!st) return; st = null; w.classList.remove('panning'); };
+  w.addEventListener('pointerup', end); w.addEventListener('pointercancel', end);
+  // si se arrastró la vista, que el clic al soltar no abra nada
+  w.addEventListener('click', e => { if(moved){ moved = false; e.stopPropagation(); e.preventDefault(); } }, true);
+})();
 })();
 </script>
 
