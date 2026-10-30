@@ -2348,7 +2348,7 @@ function settingsDialog(){
 
 function importDialog(){
   openDialog('Importar',
-    '<p class="note">Pegá una lista con una persona por línea: <b>Nombre; Rol; Equipo; Compañía; Especialidad; Skill; Alerta</b> (también acepta comas o tabulaciones, por ejemplo copiado de Excel). El rol puede ser la sigla o el nombre; los roles y equipos que no existan se crean solos. Si falta el equipo, la persona queda en "Sin asignar". La compañía es opcional: poné TMA para quienes vienen de TMA o Tercero para gente de proveedores (si no, se toma Personal).</p>' +
+    '<p class="note">Pegá una lista con una persona por línea: <b>Nombre; Rol; Equipo; Compañía; Especialidad; Skill; Alerta; Proveedor; Puesto; Legajo</b> (también acepta comas o tabulaciones, por ejemplo copiado de Excel). El rol puede ser la sigla o el nombre; los roles y equipos que no existan se crean solos. Si el rol queda vacío, la persona queda sin rol. Si falta el equipo, la persona queda en "Sin asignar". La compañía es opcional: poné TMA para quienes vienen de TMA o Tercero para gente de proveedores (si no, se toma Personal).</p>' +
     '<label class="field">Lista<textarea name="csv" placeholder="Ana Pérez; TL; Plataforma Cloud&#10;Juan Gómez; SRE; Observabilidad&#10;Laura Díaz; DevOps; ; TMA"></textarea></label>' +
     '<label class="field" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="replace" style="min-height:auto"> Reemplazar a todas las personas actuales</label>' +
     '<p class="note">¿Tenés un archivo exportado antes? <button type="button" class="btn" id="pickJson" style="min-height:34px;margin-left:6px">Abrir JSON…</button></p>',
@@ -2363,7 +2363,8 @@ function importDialog(){
         const name = parts[0]; if(!name || /^nombre$/i.test(name)) return;
         recs.push({name, rRaw: parts[1] || '', tRaw: parts[2] || '',
           company: /^tma$/i.test(parts[3] || '') ? EXT : /^(terceros?|proveedor(es)?)$/i.test(parts[3] || '') ? THIRD : HOME,
-          spec: parts[4] || '', skill: /^[1-5]$/.test(parts[5] || '') ? +parts[5] : null, flag: parts[6] || ''});
+          spec: parts[4] || '', skill: /^[1-5]$/.test(parts[5] || '') ? +parts[5] : null, flag: parts[6] || '',
+          vendor: parts[7] || '', title: parts[8] || '', legajo: parts[9] || ''});
       });
       // quiénes ya están: mismo nombre y apellido (en cualquier orden, sin tildes) = repetido; 2+ palabras en común = posible
       const existing = replace ? [] : S.people.slice();
@@ -2390,7 +2391,9 @@ function importDialog(){
               if(!t){ t = {id:uid('t'), name:r.tRaw}; S.teams.push(t); }
               team = t.id;
             }
-            S.people.push({id:uid('p'), name:r.name, role: ro ? ro.id : (S.roles[0] || {}).id, team, company:r.company, spec:r.spec, skill:r.skill, flag:r.flag});
+            const np = {id:uid('p'), name:r.name, role: ro ? ro.id : (r.rRaw ? (S.roles[0] || {}).id : ''), team, company:r.company, spec:r.spec, skill:r.skill, flag:r.flag};
+            if(r.vendor && r.company === THIRD) np.vendor = r.vendor; if(r.title) np.title = r.title; if(r.legajo) np.legajo = r.legajo;
+            S.people.push(np);
             n++;
           });
         });
