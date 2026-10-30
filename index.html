@@ -630,6 +630,8 @@ body{overflow-x:clip}
 .hm-check:hover,.hm-check:focus-visible{opacity:1}
 .hm-check.on{opacity:1;background:#2E9E5B;border-color:#2E9E5B;color:#fff}
 .db-hm td.c.has-nb{padding-left:22px}
+.hm-mira{position:absolute;bottom:2px;left:3px;display:inline-flex;align-items:center;gap:2px;font-size:10px;font-weight:800;color:#E5484D;line-height:1}
+.hm-accepted .hm-mira,.hm-ok .hm-mira{color:#D93636}
 </style>
 </head>
 <body>
@@ -1425,6 +1427,7 @@ const ICON_EXPAND = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"
 const ICON_SHRINK = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 2v4H2M10 2v4h4M6 14v-4H2M10 14v-4h4"/></svg>';
 const ICON_UP = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 10l4-4 4 4"/></svg>';
 const ICON_DOWN = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>';
+const ICON_MIRA = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1.5v5M12 17.5v5M1.5 12h5M17.5 12h5"/></svg>';
 const ICON_COMMENT = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>';
 const ICON_EDIT = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M10.5 2.5l3 3L6 13H3v-3z"/></svg>';
 
@@ -1980,7 +1983,9 @@ function renderDash(){
         const nid = r.t.id + '::' + roles[i].id, nn = noteCount('team', nid), alert = hc !== 'hm-ok' && hc !== 'hm-empty', ok = alert && hmAccepted(r.t.id, roles[i].id);
         const nb = '<button class="hm-note' + (nn ? ' has' : '') + '" data-act="notes" data-ntype="team" data-nid="' + esc(nid) + '" title="' + (nn ? nn + (nn === 1 ? ' comentario' : ' comentarios') : 'Comentar') + '" aria-label="Comentarios de ' + esc(r.t.name + ' · ' + roles[i].label) + '">' + ICON_COMMENT + (nn ? '<b>' + nn + '</b>' : '') + '</button>';
         const cb = alert ? '<button class="hm-check' + (ok ? ' on' : '') + '" data-act="hm-accept" data-nid="' + esc(nid) + '" aria-pressed="' + ok + '" title="' + (ok ? 'Marcado como bien por ' + esc(hmAcceptedBy(r.t.id, roles[i].id)) + ' · tocá para volver a mostrar la alerta' : 'Está bien así: dejar de marcarlo como alerta') + '" aria-label="' + (ok ? 'Volver a mostrar la alerta de ' : 'Marcar como bien ') + esc(r.t.name + ' · ' + roles[i].label) + '">✓</button>' : '';
-        return '<td class="c ' + (ok ? 'hm-ok hm-accepted' : hc) + ' has-nb" data-act="dash-cell" data-tid="' + r.t.id + '" data-rid="' + esc(roles[i].id) + '" title="' + esc(tip + (ok ? ' · marcado como bien' : '')) + '">' + cb + c.v + nb + '</td>'; }).join('') +
+        const nm = membersOf(r.t.id).filter(p => p.role === roles[i].id && p.mira).length;
+        const mb = nm ? '<span class="hm-mira" title="' + nm + (nm === 1 ? ' persona marcada' : ' personas marcadas') + ' En la mira">' + ICON_MIRA + '<b>' + nm + '</b></span>' : '';
+        return '<td class="c ' + (ok ? 'hm-ok hm-accepted' : hc) + ' has-nb" data-act="dash-cell" data-tid="' + r.t.id + '" data-rid="' + esc(roles[i].id) + '" title="' + esc(tip + (ok ? ' · marcado como bien' : '') + (nm ? ' · ' + nm + ' en la mira' : '')) + '">' + cb + c.v + nb + mb + '</td>'; }).join('') +
       '<td class="muted">' + r.n + '</td><td style="font-weight:800;color:' + (r.idx < 70 ? 'var(--warn)' : 'var(--muted)') + '" title="' + esc(r.multi ? 'Parecido a la mezcla multi-rol' : 'Foco en ' + (r.main ? r.main.label : '—')) + '">' + r.idx + '</td></tr>').join('') +
     '<tr><td class="t muted">Tribu</td><td></td>' + tot.map(v => '<td class="muted">' + v + '</td>').join('') + '<td class="muted">' + N + '</td><td></td></tr></tbody></table></div></section>';
   // C · composición
