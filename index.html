@@ -583,6 +583,10 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none!impor
 .pgrp-add{min-height:30px;padding:0 10px;font-size:12px}
 [data-theme=dark] .pgrp{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.14)}
 [data-theme=dark] .pgrp.loose{background:transparent}
+.move-all{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:12px;background:var(--bg)}
+.move-all > span{font-weight:700;font-size:13px}
+.move-all-row{display:flex;gap:8px}
+.move-all-row select{flex:1 1 auto;min-width:0}
 </style>
 </head>
 <body>
@@ -2097,6 +2101,41 @@ function personDialog(p, co, team0){
     });
 }
 
+// mover a toda la gente de un equipo de una vez (a otro equipo, a sin asignar o a un grupo de TMA)
+function moveDests(t){
+  const o = [];
+  const tmaG = pgroups('tma'), dudaG = pgroups('duda');
+  tmaG.forEach(g => o.push(['pool|u|' + EXT + '|' + g, 'TMA · sin asignar › ' + g]));
+  o.push(['pool|u|' + EXT + '|', 'TMA · sin asignar (sin grupo)']);
+  dudaG.forEach(g => o.push(['pool|' + DUDA + '||' + g, 'TMA en duda › ' + g]));
+  o.push(['pool|' + DUDA + '||', 'TMA en duda (sin grupo)']);
+  o.push(['pool|u|' + HOME + '|', 'Sin asignar · Personal']);
+  o.push(['pool|' + MIRA + '||', 'En la mira']);
+  o.push(['pool|' + PARK + '||', 'Parking lot']);
+  S.teams.filter(x => x.id !== t.id).forEach(x => o.push(['team|' + x.id, 'Equipo: ' + x.name]));
+  return o;
+}
+function moveAllField(t, isNew){
+  if(isNew) return '';
+  const n = membersOf(t.id).length; if(!n) return '';
+  const o = moveDests(t), tn = normName(t.name);
+  // si el nombre del equipo contiene el de un grupo de TMA · sin asignar, lo propone (ej: "IAAS TMA" → grupo IAAS)
+  const guess = (o.find(([v]) => v.startsWith('pool|u|' + EXT + '|') && v.split('|')[3] && tn.includes(normName(v.split('|')[3]))) || [''])[0];
+  return '<div class="field move-all"><span>Mover a toda su gente (' + n + ') a</span><div class="move-all-row"><select name="moveTo">' +
+    o.map(([v, l]) => '<option value="' + esc(v) + '"' + (v === guess ? ' selected' : '') + '>' + esc(l) + '</option>').join('') +
+    '</select><button class="btn" value="moveall" formnovalidate>Mover</button></div></div>';
+}
+function moveAllPeople(t, dest){
+  const m = membersOf(t.id); if(!m.length || !dest) return;
+  const d = dest.split('|');
+  const label = (moveDests(t).find(([v]) => v === dest) || ['', ''])[1];
+  commit(() => m.forEach(p => {
+    if(d[0] === 'team'){ p.team = d[1]; delete p.pgrp; return; }
+    p.team = d[1]; if(d[2]) p.company = d[2];
+    if(d[3]) p.pgrp = d[3]; else delete p.pgrp;
+  }));
+  toast(m.length + (m.length === 1 ? ' persona' : ' personas') + ' → ' + label);
+}
 function teamDialog(t, asLead){
   const isNew = !t;
   t = t || {name:'', lead: !!asLead};
@@ -2115,10 +2154,12 @@ function teamDialog(t, asLead){
         '<label class="field">Responsabilidades <span style="font-weight:400;color:var(--muted)">(una por renglón)</span><textarea name="resp" rows="5" maxlength="3000" placeholder="Operar y mantener la plataforma de virtualización&#10;Gestionar capacidad y parches&#10;Guardia 24x7 de nivel 2">' + esc((t.resp || []).join('\n')) + '</textarea></label>' +
         '<label class="field" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="multi"' + (t.name && isMulti(t) ? ' checked' : '') + ' style="width:auto;height:auto"> Equipo multi-rol (se espera una mezcla de roles; si no, es específico)</label>') +
     (isNew ? '' : lead ? '<p class="note">Si la eliminás, su gente pasa a "Sin asignar" y sus equipos quedan sin ubicar.</p>' : '<p class="note">Si eliminás el equipo, sus integrantes pasan a "Sin asignar" y los equipos que le reportan pasan a reportar a su superior.</p>') +
+    moveAllField(t, isNew) +
     (isNew ? '' : '<label class="field">Posición<select name="pos">' + S.teams.map((x, i) => '<option value="' + i + '"' + (x.id === t.id ? ' selected' : '') + '>' + (i + 1) + '</option>').join('') + '</select></label>'),
     (isNew ? '' : '<button class="btn danger left" value="delete">Eliminar equipo</button>') +
     '<button class="btn" value="cancel" formnovalidate>Cancelar</button><button class="btn primary" value="ok">' + (isNew ? 'Crear' : 'Guardar') + '</button>',
     (f, v) => {
+      if(v === 'moveall'){ return moveAllPeople(t, f.elements.moveTo.value); }
       if(v === 'delete'){
         commit(() => {
           S.people.forEach(p => { if(p.team === t.id) p.team = UN; });
