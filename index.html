@@ -1265,23 +1265,23 @@ function renderStats(){
 }
 // recuadros por área: suman a la gente de los equipos con ese nombre y de todos los que dependen de ellos
 const AREAS = [
-  ['Cloud Privada', [/diseno.*ingenier/, /soporte.*operac/], 'Diseño & Ingeniería + Soporte & Operación'],
+  ['Cloud Privada', [/diseno.*ingenier/, /soporte.*operac/], 'Diseño & Ingeniería + Soporte & Operación', p => p.team === UN && (p.company || HOME) === HOME], // + Sin asignar · Personal
   ['Cloud Advisor', [/cloud advisor/], 'Cloud Advisor'],
   ['Cloud Pública', [/cloud publica/, /public cloud/], 'Cloud Pública']
 ];
 function areaStats(){
   const split = (by, th) => '<small class="area-split"><b class="co-p">Personal ' + by(HOME) + '</b><b class="co-t">TMA ' + by(EXT) + '</b>' + (th ? '<b class="co-3">Terceros ' + th + '</b>' : '') + '</small>';
   const all = new Set(), names = [];
-  const boxes = AREAS.map(([label, res, desc]) => {
+  const boxes = AREAS.map(([label, res, desc, extra]) => {
     const roots = S.teams.filter(t => res.some(r => r.test(normName(t.name))));
     const ids = new Set();
     roots.forEach(t => { ids.add(t.id); descendants(t.id).forEach(id => ids.add(id)); });
-    const m = S.people.filter(p => ids.has(p.team));
+    const m = S.people.filter(p => ids.has(p.team) || (extra && extra(p)));
     m.forEach(p => all.add(p));
-    if(roots.length) names.push(label);
+    if(roots.length || m.length) names.push(label);
     const by = c => m.filter(p => (p.company || HOME) === c).length;
-    const tip = roots.length ? 'Gente asignada a ' + roots.map(t => t.name).join(' + ') + ' y a los equipos que dependen de ellos.' : 'No encuentro un equipo llamado ' + desc + ' en el organigrama.';
-    return '<div class="stat area" title="' + esc(tip) + '"><span>' + esc(label) + '</span><span>' + (roots.length ? m.length : '—') + '</span>' + split(by, by(THIRD)) + '</div>';
+    const tip = roots.length ? 'Gente asignada a ' + roots.map(t => t.name).join(' + ') + ' y a los equipos que dependen de ellos' + (extra ? ', más Sin asignar · Personal' : '') + '.' : 'No encuentro un equipo llamado ' + desc + ' en el organigrama.';
+    return '<div class="stat area" title="' + esc(tip) + '"><span>' + esc(label) + '</span><span>' + (roots.length || m.length ? m.length : '—') + '</span>' + split(by, by(THIRD)) + '</div>';
   });
   // MCH = Cloud Privada + Cloud Advisor + Cloud Pública (cada persona se cuenta una sola vez)
   const mm = [...all], byM = c => mm.filter(p => (p.company || HOME) === c).length, thM = byM(THIRD);
