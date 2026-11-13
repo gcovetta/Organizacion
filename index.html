@@ -528,6 +528,7 @@ body.locked .layout{display:none!important}
 @media (max-width:640px){.layout .board{padding-left:16px}.layout .pools{margin:0 16px 32px}}
 /* ---- grupo "No suman" en el resumen ---- */
 .area-extra{display:block;font-size:11px;color:var(--muted);margin-top:2px}
+.area-extra.un-home{font-weight:700;color:var(--co-home,var(--muted))}
 .stat-group{display:flex;flex-direction:column;gap:6px;padding:6px 8px 8px;border:2px dashed #C9CBD8;border-radius:14px}
 .stat-group-label{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding:0 6px}
 .stat-group-row{display:flex;flex-wrap:wrap;gap:8px}
@@ -1376,7 +1377,9 @@ function areaStats(){
     const by = c => m.filter(p => (p.company || HOME) === c).length;
     const tip = roots.length ? 'Gente asignada a ' + roots.map(t => t.name).join(' + ') + ' y a los equipos que dependen de ellos.' + (extra ? ' Los de Sin asignar · Personal y TMA · sin asignar no están en esta tarjeta pero sí suman a MCH.' : '') : 'No encuentro un equipo llamado ' + desc + ' en el organigrama.';
     return '<div class="stat area" title="' + esc(tip) + '"><span>' + esc(label) + '</span><span>' + (roots.length || m.length ? m.length : '—') + '</span>' + split(by, by(THIRD)) +
-      (ex.length ? '<small class="area-extra">+' + ex.length + ' sin asignar (suman a MCH)</small>' : '') + '</div>';
+      (ex.length ? (() => { const eh = ex.filter(p => (p.company || HOME) === HOME).length, et = ex.length - eh;
+        return '<small class="area-extra un-home" title="Están en Sin asignar · Personal. No suman en esta tarjeta pero sí a MCH.">+' + eh + ' de Personal sin asignar</small>' +
+          (et ? '<small class="area-extra">+' + et + ' de TMA sin asignar</small>' : ''); })() : '') + '</div>';
   });
   // MCH = Cloud Privada + Cloud Advisor + Cloud Pública + quienes dependen directo del líder (cada persona se cuenta una sola vez)
   membersOf(DIRECT).forEach(p => all.add(p)); if(membersOf(DIRECT).length) names.push('directos de ' + (S.tribe.lead || 'líder'));
