@@ -527,6 +527,7 @@ body.locked .layout{display:none!important}
 @media (max-width:900px){.col-resizer{display:none!important}.layout{flex-direction:column;align-items:stretch;padding-left:0}.layout .board{padding-left:32px}.layout .pools{flex:none;order:2;position:static;max-height:none;overflow:visible;margin:0 32px 40px}}
 @media (max-width:640px){.layout .board{padding-left:16px}.layout .pools{margin:0 16px 32px}}
 /* ---- grupo "No suman" en el resumen ---- */
+.area-extra{display:block;font-size:11px;color:var(--muted);margin-top:2px}
 .stat-group{display:flex;flex-direction:column;gap:6px;padding:6px 8px 8px;border:2px dashed #C9CBD8;border-radius:14px}
 .stat-group-label{font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding:0 6px}
 .stat-group-row{display:flex;flex-wrap:wrap;gap:8px}
@@ -535,6 +536,11 @@ body.locked .layout{display:none!important}
 .pool.baja .count{color:#3F4152}
 .pool.duda{border-color:#D99A1E;background:#FFF6E0}
 .pool.duda .count{color:#7A5200}
+.pool.retiro{border-color:#B5476B;background:#FBEAF0}
+.pool.retiro .count{color:#8A2448}
+.stat.retiro{background:#FBEAF0}.stat.retiro>span{color:#8A2448}
+[data-theme=dark] .pool.retiro,[data-theme=dark] .stat.retiro{background:#2B1620}
+[data-theme=dark] .pool.retiro .count,[data-theme=dark] .stat.retiro>span{color:#F0A3BE}
 .stat.baja{background:#EFEFF4}.stat.baja span{color:#3F4152}
 .stat.duda{background:#FFF6E0}.stat.duda span{color:#7A5200}
 [data-theme=dark] .pool.baja,[data-theme=dark] .stat.baja{background:#1E1F2A}
@@ -711,6 +717,7 @@ body{overflow-x:clip}
   <section class="pool" id="poolHome" data-drop="u" data-co="Personal" aria-label="Sin asignar de Personal"></section>
   <section class="pool ext" id="poolExt" data-drop="u" data-co="TMA" aria-label="Sin asignar de TMA"></section>
   <section class="pool third" id="poolThird" data-drop="u" data-co="Terceros" aria-label="Sin asignar de terceros"></section>
+  <section class="pool retiro" id="poolRetiro" data-drop="retiro" aria-label="Retiro"></section>
   <section class="pool baja" id="poolBaja" data-drop="baja" aria-label="Personal bajas"></section>
   <section class="pool duda" id="poolDuda" data-drop="duda" aria-label="TMA en duda"></section>
   <section class="pool mira" id="poolMira" data-drop="mira" aria-label="En la mira"></section>
@@ -771,7 +778,8 @@ const PARK = 'park'; // parking lot: gente apartada, no cuenta en la estructura
 const MIRA = 'mira'; // en la mira: gente que estamos mirando sumar, no cuenta en la estructura
 const BAJA = 'baja'; // Personal bajas: no cuenta en el total de MCH
 const DUDA = 'duda'; // TMA en duda: no cuenta en el total de MCH
-const OFF_TEAMS = [PARK, MIRA, BAJA, DUDA]; // grupos fuera de la estructura
+const RETIRO = 'retiro'; // Retiro: se resta de la dotación de MCH
+const OFF_TEAMS = [PARK, MIRA, BAJA, DUDA, RETIRO]; // grupos fuera de la estructura
 const DIRECT = 'direct'; // personas sin equipo a cargo que dependen directo del líder de tribu (cuentan en la estructura)
 const HOME = 'Personal', EXT = 'TMA';
 const THIRD = 'Terceros';
@@ -1361,12 +1369,14 @@ function areaStats(){
     const roots = S.teams.filter(t => res.some(r => r.test(normName(t.name))));
     const ids = new Set();
     roots.forEach(t => { ids.add(t.id); descendants(t.id).forEach(id => ids.add(id)); });
-    const m = S.people.filter(p => ids.has(p.team) || (extra && extra(p)));
-    m.forEach(p => all.add(p));
-    if(roots.length || m.length) names.push(label);
+    const m = S.people.filter(p => ids.has(p.team));
+    const ex = extra ? S.people.filter(p => !ids.has(p.team) && extra(p)) : [];
+    m.concat(ex).forEach(p => all.add(p));
+    if(roots.length || m.length || ex.length) names.push(label);
     const by = c => m.filter(p => (p.company || HOME) === c).length;
-    const tip = roots.length ? 'Gente asignada a ' + roots.map(t => t.name).join(' + ') + ' y a los equipos que dependen de ellos' + (extra ? ', más Sin asignar · Personal y TMA · sin asignar' : '') + '.' : 'No encuentro un equipo llamado ' + desc + ' en el organigrama.';
-    return '<div class="stat area" title="' + esc(tip) + '"><span>' + esc(label) + '</span><span>' + (roots.length || m.length ? m.length : '—') + '</span>' + split(by, by(THIRD)) + '</div>';
+    const tip = roots.length ? 'Gente asignada a ' + roots.map(t => t.name).join(' + ') + ' y a los equipos que dependen de ellos.' + (extra ? ' Los de Sin asignar · Personal y TMA · sin asignar no están en esta tarjeta pero sí suman a MCH.' : '') : 'No encuentro un equipo llamado ' + desc + ' en el organigrama.';
+    return '<div class="stat area" title="' + esc(tip) + '"><span>' + esc(label) + '</span><span>' + (roots.length || m.length ? m.length : '—') + '</span>' + split(by, by(THIRD)) +
+      (ex.length ? '<small class="area-extra">+' + ex.length + ' sin asignar (suman a MCH)</small>' : '') + '</div>';
   });
   // MCH = Cloud Privada + Cloud Advisor + Cloud Pública + quienes dependen directo del líder (cada persona se cuenta una sola vez)
   membersOf(DIRECT).forEach(p => all.add(p)); if(membersOf(DIRECT).length) names.push('directos de ' + (S.tribe.lead || 'líder'));
@@ -1379,7 +1389,16 @@ function areaStats(){
   const mchNoTma = '<div class="stat area mch" title="MCH sin contar a la gente de TMA."><span>MCH sin TMA</span>' +
     '<div class="mch-nums"><div><b>' + nt.length + '</b><small>con terceros</small></div><div><b>' + (nt.length - thN) + '</b><small>sin terceros</small></div></div>' +
     '<small class="area-split"><b class="co-p">Personal ' + byM(HOME) + '</b>' + (thN ? '<b class="co-3">Terceros ' + thN + '</b>' : '') + '</small></div>';
-  return mch + mchNoTma + boxes.join('');
+  // Retiro: % sobre MCH sin terceros "Privada" (sin Cloud Pública, sin Cloud Advisor y sin Monti), contando a los que se van
+  const ret = membersOf(RETIRO).filter(p => p.company !== THIRD);
+  const skip = new Set();
+  AREAS.filter(a => a[0] !== 'Cloud Privada').forEach(([, res]) => S.teams.filter(t => res.some(r => r.test(normName(t.name)))).forEach(t => { skip.add(t.id); descendants(t.id).forEach(id => skip.add(id)); }));
+  const base = mm.filter(p => p.company !== THIRD && !skip.has(p.team) && !/\bmonti\b/.test(normName(p.name)));
+  const den = base.length + ret.length;
+  const pct = den ? (ret.length * 100 / den) : 0;
+  const retiro = '<div class="stat area retiro" title="' + esc('Personas movidas a Retiro (ya no suman a MCH). El % es sobre MCH sin terceros, sin Cloud Pública, sin Cloud Advisor y sin Monti: ' + ret.length + ' de ' + den + ' (' + base.length + ' que quedan + ' + ret.length + ' en retiro).') + '"><span>Retiro</span><span>' + membersOf(RETIRO).length + '</span>' +
+    '<small class="area-split"><b>' + pct.toFixed(1).replace('.', ',') + '% de MCH Privada sin terceros</b></small><small class="area-extra">' + ret.length + ' de ' + den + '</small></div>';
+  return mch + mchNoTma + retiro + boxes.join('');
 }
 function roleStats(){
   const ppl = ourPeople(), cnt = {};
@@ -1687,11 +1706,11 @@ function renderPool(){
       '<button class="btn pool-add" data-act="add-person" data-co="' + co + '">+ Persona' + (co === EXT ? ' de TMA' : co === THIRD ? ' de tercero' : '') + '</button></div>' +
       (co === EXT ? groupedList('tma', m, 'u', EXT) : co === HOME ? groupedList('per', m, 'u', HOME) : '<div class="pool-list">' + (m.length ? m.map(p => chip(p, true)).join('') : '<span class="hint">Vacío</span>') + '</div>');
   });
-  [['#poolBaja', BAJA, 'Personal bajas', HOME, '+ Baja de Personal'], ['#poolDuda', DUDA, 'TMA en duda', EXT, '+ Persona de TMA en duda']].forEach(([sel, tid, title, co, btn]) => {
+  [['#poolRetiro', RETIRO, 'Retiro', '', '+ Persona en retiro'], ['#poolBaja', BAJA, 'Personal bajas', HOME, '+ Baja de Personal'], ['#poolDuda', DUDA, 'TMA en duda', EXT, '+ Persona de TMA en duda']].forEach(([sel, tid, title, co, btn]) => {
     const m = membersOf(tid);
     $(sel).innerHTML = '<div class="pool-head"><h2>' + title + '</h2><span class="count">' + m.length + '</span>' +
-      '<span class="hint">no suma al total de MCH · arrastrá gente acá</span>' +
-      '<button class="btn pool-add" data-act="add-person" data-team="' + tid + '" data-co="' + co + '">' + btn + '</button></div>' +
+      '<span class="hint">' + (tid === RETIRO ? 'se resta de la dotación de MCH · arrastrá gente acá' : 'no suma al total de MCH · arrastrá gente acá') + '</span>' +
+      '<button class="btn pool-add" data-act="add-person" data-team="' + tid + '"' + (co ? ' data-co="' + co + '"' : '') + '>' + btn + '</button></div>' +
       (tid === DUDA ? groupedList('duda', m, DUDA, '') : '<div class="pool-list">' + (m.length ? m.map(p => chip(p, true)).join('') : '<span class="hint">Vacío</span>') + '</div>');
   });
   const mi = membersOf(MIRA);
@@ -1717,7 +1736,7 @@ const LV_COLS = [
   ['spec', 'Especialidad'], ['skill', 'Skill'], ['title', 'Puesto'], ['manager', 'Jefe directo'], ['flag', 'Alerta']
 ];
 function hasRole(p){ return !!p.role && S.roles.some(r => r.id === p.role); }
-function teamName(id){ return id === UN ? 'Sin asignar' : id === DIRECT ? 'Directo de ' + (S.tribe.lead || 'Líder de tribu') : id === PARK ? 'Parking lot' : id === MIRA ? 'En la mira' : id === BAJA ? 'Personal bajas' : id === DUDA ? 'TMA en duda' : ((S.teams.find(t => t.id === id) || {}).name || 'Sin asignar'); }
+function teamName(id){ return id === UN ? 'Sin asignar' : id === DIRECT ? 'Directo de ' + (S.tribe.lead || 'Líder de tribu') : id === PARK ? 'Parking lot' : id === MIRA ? 'En la mira' : id === BAJA ? 'Personal bajas' : id === DUDA ? 'TMA en duda' : id === RETIRO ? 'Retiro' : ((S.teams.find(t => t.id === id) || {}).name || 'Sin asignar'); }
 function lvMissing(p){
   const m = [];
   if(!hasRole(p)) m.push('role');
@@ -2225,7 +2244,8 @@ function teamOptions(sel){
     '<option value="' + MIRA + '"' + (sel === MIRA ? ' selected' : '') + '>En la mira (no cuenta)</option>' +
     '<option value="' + PARK + '"' + (sel === PARK ? ' selected' : '') + '>Parking lot (no cuenta)</option>' +
     '<option value="' + BAJA + '"' + (sel === BAJA ? ' selected' : '') + '>Personal bajas (no suma a MCH)</option>' +
-    '<option value="' + DUDA + '"' + (sel === DUDA ? ' selected' : '') + '>TMA en duda (no suma a MCH)</option>';
+    '<option value="' + DUDA + '"' + (sel === DUDA ? ' selected' : '') + '>TMA en duda (no suma a MCH)</option>' +
+    '<option value="' + RETIRO + '"' + (sel === RETIRO ? ' selected' : '') + '>Retiro (se resta de MCH)</option>';
 }
 
 function personDialog(p, co, team0){
@@ -2275,6 +2295,7 @@ function moveDests(t){
   o.push(['pool|' + DIRECT + '||', 'Directo de ' + (S.tribe.lead || 'Líder de tribu')]);
   o.push(['pool|' + MIRA + '||', 'En la mira']);
   o.push(['pool|' + PARK + '||', 'Parking lot']);
+  o.push(['pool|' + RETIRO + '||', 'Retiro']);
   S.teams.filter(x => x.id !== t.id).forEach(x => o.push(['team|' + x.id, 'Equipo: ' + x.name]));
   return o;
 }
@@ -2573,7 +2594,7 @@ document.addEventListener('drop', e => {
   const co = zone.dataset.co;
   const grp = zone.dataset.grp; // undefined fuera de los grupos
   if(!p || (p.team === team && (!co || p.company === co) && (grp === undefined ? !p.pgrp : (p.pgrp || '') === grp))) return;
-  const dest = team === DIRECT ? 'Directo de ' + (S.tribe.lead || 'Líder de tribu') : team === MIRA ? 'En la mira' : team === PARK ? 'Parking lot' : team === BAJA ? 'Personal bajas' : team === DUDA ? 'TMA en duda' : team === UN ? 'Sin asignar · ' + co : (S.teams.find(t => t.id === team) || {}).name;
+  const dest = team === DIRECT ? 'Directo de ' + (S.tribe.lead || 'Líder de tribu') : team === MIRA ? 'En la mira' : team === PARK ? 'Parking lot' : team === BAJA ? 'Personal bajas' : team === DUDA ? 'TMA en duda' : team === RETIRO ? 'Retiro' : team === UN ? 'Sin asignar · ' + co : (S.teams.find(t => t.id === team) || {}).name;
   commit(() => { p.team = team; if(co) p.company = co; if(grp) p.pgrp = grp; else delete p.pgrp; });
   toast(p.name + ' → ' + dest + (grp ? ' · ' + grp : ''));
 });
