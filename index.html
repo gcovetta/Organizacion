@@ -529,6 +529,12 @@ body.locked .layout{display:none!important}
 /* ---- grupo "No suman" en el resumen ---- */
 .stat.salidas>span:nth-child(2){color:#8A2448}
 [data-theme=dark] .stat.salidas>span:nth-child(2){color:#F0A3BE}
+.ret-tag{font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;background:#FFF1D6;color:#7A5200;white-space:nowrap}
+.ret-tag.ok{background:#DDF3E4;color:#1E6B3A}
+[data-theme=dark] .ret-tag{background:#3A2C10;color:#F2C46B}[data-theme=dark] .ret-tag.ok{background:#14321F;color:#8FE0A8}
+.ret-sub{display:flex;flex-direction:column;gap:6px}
+.ret-sub-head{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+.area-extra.ret-st b{color:#1E6B3A}[data-theme=dark] .area-extra.ret-st b{color:#8FE0A8}
 .area-extra{display:block;font-size:11px;color:var(--muted);margin-top:2px}
 .area-extra.un-home{font-weight:700;color:var(--co-home,var(--muted))}
 .stat-group{display:flex;flex-direction:column;gap:6px;padding:6px 8px 8px;border:2px dashed #C9CBD8;border-radius:14px}
@@ -1401,6 +1407,7 @@ function areaStats(){
   const den = cpHome + nRet;
   const pct = den ? (nRet * 100 / den) : 0;
   const retiro = '<div class="stat area retiro" title="' + esc('Personas movidas a Retiro (ya no suman a MCH). El % es sobre Cloud Privada de Personal (Soporte & Operación + Diseño & Ingeniería + Sin asignar · Personal) más los que se van a retiro.') + '"><span>Retiro</span><span>' + nRet + '</span>' +
+    (() => { const ok = membersOf(RETIRO).filter(p => p.retOk).length; return '<small class="area-extra ret-st"><b>' + ok + ' confirmados</b> · ' + (nRet - ok) + ' en análisis</small>'; })() +
     '<small class="area-split"><b>' + pct.toFixed(1).replace('.', ',') + '% de Cloud Privada Personal</b></small><small class="area-extra">' + nRet + ' / (' + cpHome + ' + ' + nRet + ')</small></div>';
   const bajas = '<div class="stat area baja" title="Personas en el recuadro Personal bajas (no suman a MCH)."><span>Bajas</span><span>' + membersOf(BAJA).length + '</span><small class="area-extra">en Personal bajas</small></div>';
   // Retiro + Bajas: % de salidas sobre la base de Personal de Cloud Privada (salidas / (Cloud Privada Personal + salidas))
@@ -1466,6 +1473,7 @@ function chip(p, showRole){
     '<span class="dot" style="background:' + soft(r.color) + ';color:' + esc(r.color) + '">' + esc(initials(p.name)) + '</span>' +
     '<span>' + esc(p.name) + (showRole ? ' · ' + esc(r.short) : '') + '</span>' +
     (p.flag ? '<span class="flag-tag" title="' + esc(p.flag) + '">⚠ Revisar</span>' : '') +
+    (p.team === RETIRO ? (p.retOk ? '<span class="ret-tag ok">✓ Confirmado</span>' : '<span class="ret-tag">En análisis</span>') : '') +
     (noteCount('person', p.id) ? '<span class="note-dot" title="Tiene comentarios"></span>' : '') +
     (p.spec ? '<span class="spec-tag">' + esc(p.spec) + '</span>' : '') +
     (skillOf(p) ? '<span class="sk-chip" style="background:' + SKC[skillOf(p)] + '" title="Skill ' + skillOf(p) + ' de 5">' + skillOf(p) + '</span>' : '') +
@@ -1722,7 +1730,9 @@ function renderPool(){
     $(sel).innerHTML = '<div class="pool-head"><h2>' + title + '</h2><span class="count">' + m.length + '</span>' +
       '<span class="hint">' + (tid === RETIRO ? 'se resta de la dotación de MCH · arrastrá gente acá' : 'no suma al total de MCH · arrastrá gente acá') + '</span>' +
       '<button class="btn pool-add" data-act="add-person" data-team="' + tid + '"' + (co ? ' data-co="' + co + '"' : '') + '>' + btn + '</button></div>' +
-      (tid === DUDA ? groupedList('duda', m, DUDA, '') : '<div class="pool-list">' + (m.length ? m.map(p => chip(p, true)).join('') : '<span class="hint">Vacío</span>') + '</div>');
+      (tid === RETIRO ? (m.length ? [['Confirmados', m.filter(p => p.retOk)], ['En análisis', m.filter(p => !p.retOk)]].map(([l, g]) =>
+          '<div class="ret-sub"><div class="ret-sub-head">' + l + ' <span class="count">' + g.length + '</span></div><div class="pool-list">' + (g.length ? g.map(p => chip(p, true)).join('') : '<span class="hint">Nadie</span>') + '</div></div>').join('') : '<div class="pool-list"><span class="hint">Vacío</span></div>') :
+       tid === DUDA ? groupedList('duda', m, DUDA, '') : '<div class="pool-list">' + (m.length ? m.map(p => chip(p, true)).join('') : '<span class="hint">Vacío</span>') + '</div>');
   });
   const mi = membersOf(MIRA);
   $('#poolMira').innerHTML = '<div class="pool-head"><h2 class="mira-title"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1.5v5M12 17.5v5M1.5 12h5M17.5 12h5"/></svg>En la mira</h2><span class="count">' + mi.length + '</span>' +
@@ -2272,6 +2282,7 @@ function personDialog(p, co, team0){
     '<label class="field">Equipo<select name="team">' + teamOptions(p.team) + '</select></label>' +
     '<label class="field">Alerta / para revisar <span style="font-weight:400;color:var(--muted)">(dejalo vacío si no hay nada que revisar)</span><input name="flag" value="' + esc(p.flag || '') + '" placeholder="Ej: revisar si nos lo asignan"></label>' +
     '<label class="field" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="mira"' + (p.mira ? ' checked' : '') + ' style="width:auto;height:auto"> En la mira <span style="font-weight:400;color:var(--muted)">(aparece también en "En la mira" y sigue contando en su equipo)</span></label>' +
+    '<label class="field" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="retOk"' + (p.retOk ? ' checked' : '') + ' style="width:auto;height:auto"> Retiro confirmado <span style="font-weight:400;color:var(--muted)">(si no está tildado y la persona está en Retiro, figura "en análisis")</span></label>' +
     '<label class="field">Especialidad<input name="spec" list="specList" value="' + esc(p.spec || '') + '" placeholder="Ej: DB, SO, Networking"></label>' +
     '<div class="field">Skill (1 a 5)<div class="sk-pick" role="radiogroup" aria-label="Skill">' + [0,1,2,3,4,5].map(k =>
       '<label><input type="radio" name="skill" value="' + k + '"' + (skillOf(p) === k ? ' checked' : '') + '><span style="' + (skillOf(p) === k ? 'background:' + SKC[k] : '') + '" data-c="' + SKC[k] + '">' + (k || 'Sin evaluar') + '</span></label>').join('') + '</div></div>' +
@@ -2286,7 +2297,7 @@ function personDialog(p, co, team0){
       if(v === 'delete'){ commit(() => { S.people = S.people.filter(x => x.id !== p.id); }); toast('Persona eliminada'); return; }
       const name = f.elements.name.value.trim(); if(!name) return false;
       commit(() => {
-        const vals = {name, role:f.elements.role.value, team:f.elements.team.value, company:f.elements.company.value, vendor:f.elements.company.value === THIRD ? f.elements.vendor.value.trim() : '', title:f.elements.title.value.trim(), manager:f.elements.manager.value.trim(), spec:f.elements.spec.value.trim(), flag:f.elements.flag.value.trim(), mira: f.elements.mira.checked || undefined, skill:(+(f.querySelector('input[name=skill]:checked') || {}).value || null)};
+        const vals = {name, role:f.elements.role.value, team:f.elements.team.value, company:f.elements.company.value, vendor:f.elements.company.value === THIRD ? f.elements.vendor.value.trim() : '', title:f.elements.title.value.trim(), manager:f.elements.manager.value.trim(), spec:f.elements.spec.value.trim(), flag:f.elements.flag.value.trim(), mira: f.elements.mira.checked || undefined, retOk: f.elements.retOk.checked || undefined, skill:(+(f.querySelector('input[name=skill]:checked') || {}).value || null)};
         if(isNew) S.people.push(Object.assign({id:uid('p')}, vals));
         else Object.assign(S.people.find(x => x.id === p.id), vals);
       });
