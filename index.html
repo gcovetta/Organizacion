@@ -527,6 +527,8 @@ body.locked .layout{display:none!important}
 @media (max-width:900px){.col-resizer{display:none!important}.layout{flex-direction:column;align-items:stretch;padding-left:0}.layout .board{padding-left:32px}.layout .pools{flex:none;order:2;position:static;max-height:none;overflow:visible;margin:0 32px 40px}}
 @media (max-width:640px){.layout .board{padding-left:16px}.layout .pools{margin:0 16px 32px}}
 /* ---- grupo "No suman" en el resumen ---- */
+.stat.salidas>span:nth-child(2){color:#8A2448}
+[data-theme=dark] .stat.salidas>span:nth-child(2){color:#F0A3BE}
 .area-extra{display:block;font-size:11px;color:var(--muted);margin-top:2px}
 .area-extra.un-home{font-weight:700;color:var(--co-home,var(--muted))}
 .stat-group{display:flex;flex-direction:column;gap:6px;padding:6px 8px 8px;border:2px dashed #C9CBD8;border-radius:14px}
@@ -1401,7 +1403,13 @@ function areaStats(){
   const retiro = '<div class="stat area retiro" title="' + esc('Personas movidas a Retiro (ya no suman a MCH). El % es sobre Cloud Privada de Personal (Soporte & Operación + Diseño & Ingeniería + Sin asignar · Personal) más los que se van a retiro.') + '"><span>Retiro</span><span>' + nRet + '</span>' +
     '<small class="area-split"><b>' + pct.toFixed(1).replace('.', ',') + '% de Cloud Privada Personal</b></small><small class="area-extra">' + nRet + ' / (' + cpHome + ' + ' + nRet + ')</small></div>';
   const bajas = '<div class="stat area baja" title="Personas en el recuadro Personal bajas (no suman a MCH)."><span>Bajas</span><span>' + membersOf(BAJA).length + '</span><small class="area-extra">en Personal bajas</small></div>';
-  return mch + mchNoTma + retiro + bajas + boxes.join('');
+  // Retiro + Bajas: % de salidas sobre la base de Personal de Cloud Privada (salidas / (Cloud Privada Personal + salidas))
+  const nBaja = membersOf(BAJA).length, nOut = nRet + nBaja, denOut = cpHome + nOut;
+  const pctOut = denOut ? (nOut * 100 / denOut) : 0;
+  const outTot = '<div class="stat area salidas" title="' + esc('Retiro + Bajas sobre la base de Personal de Cloud Privada: (' + nRet + ' + ' + nBaja + ') / (' + cpHome + ' + ' + nRet + ' + ' + nBaja + ').') + '"><span>Retiro + Bajas</span><span>' + pctOut.toFixed(1).replace('.', ',') + '%</span>' +
+    '<small class="area-split"><b>' + nOut + ' de Cloud Privada Personal</b></small><small class="area-extra">(' + nRet + ' + ' + nBaja + ') / (' + cpHome + ' + ' + nRet + ' + ' + nBaja + ')</small></div>';
+  const salidas = '<div class="stat-group salidas-group" role="group" aria-label="Salidas: Retiro y Bajas"><span class="stat-group-label">Salidas</span><div class="stat-group-row">' + retiro + bajas + outTot + '</div></div>';
+  return mch + mchNoTma + salidas + boxes.join('');
 }
 function roleStats(){
   const ppl = ourPeople(), cnt = {};
