@@ -1219,7 +1219,10 @@ function noteBtn(type, id, name){
   const n = noteCount(type, id);
   return '<button class="mini' + (n ? ' has-notes' : '') + '" data-act="notes" data-ntype="' + type + '" data-nid="' + id + '" aria-label="Comentarios de ' + esc(name) + (n ? ' (' + n + ')' : '') + '" title="Comentarios">' + ICON_COMMENT + (n ? '<span class="n">' + n + '</span>' : '') + '</button>';
 }
+const POOL_NAMES = {['pool:u-' + HOME]:'Sin asignar · Personal', ['pool:u-' + EXT]:'TMA · sin asignar', ['pool:u-' + THIRD]:'Terceros · sin asignar', ['pool:' + RETIRO]:'Retiro', ['pool:' + BAJA]:'Personal bajas', ['pool:' + DUDA]:'TMA en duda', ['pool:' + MIRA]:'En la mira', ['pool:' + PARK]:'Parking lot'};
+function poolNote(key){ return '<span class="pool-note">' + noteBtn('team', 'pool:' + key, POOL_NAMES['pool:' + key] || key) + '</span>'; }
 function targetName(type, id){
+  if(type === 'team' && String(id).startsWith('pool:')) return POOL_NAMES[id] || 'Recuadro';
   if(type === 'team' && String(id).includes('::')){ // celda de la matriz equipo × rol
     const [tid, rid] = String(id).split('::'); const t = S.teams.find(x => x.id === tid);
     return (t ? t.name : 'Equipo eliminado') + ' · ' + ((S.roles.find(r => r.id === rid) || {}).label || 'rol eliminado'); }
@@ -1720,14 +1723,14 @@ function miraMarked(){ return S.people.filter(p => p.mira && p.team !== MIRA); }
 function renderPool(){
   [['#poolHome', HOME, 'Sin asignar · Personal'], ['#poolExt', EXT, 'TMA · sin asignar'], ['#poolThird', THIRD, 'Terceros · sin asignar']].forEach(([sel, co, title]) => {
     const m = membersOf(UN).filter(p => (p.company || HOME) === co);
-    $(sel).innerHTML = '<div class="pool-head"><h2>' + title + '</h2><span class="count">' + m.length + '</span>' +
+    $(sel).innerHTML = '<div class="pool-head"><h2>' + title + '</h2><span class="count">' + m.length + '</span>' + poolNote('u-' + co) +
       '<span class="hint">' + (co === EXT ? 'personas que vienen de TMA · arrastralas a un equipo' : co === THIRD ? 'personas de proveedores · cuentan en los equipos, arriba van aparte' : 'arrastrá a un equipo') + '</span>' +
       '<button class="btn pool-add" data-act="add-person" data-co="' + co + '">+ Persona' + (co === EXT ? ' de TMA' : co === THIRD ? ' de tercero' : '') + '</button></div>' +
       (co === EXT ? groupedList('tma', m, 'u', EXT) : co === HOME ? groupedList('per', m, 'u', HOME) : '<div class="pool-list">' + (m.length ? m.map(p => chip(p, true)).join('') : '<span class="hint">Vacío</span>') + '</div>');
   });
   [['#poolRetiro', RETIRO, 'Retiro', '', '+ Persona en retiro'], ['#poolBaja', BAJA, 'Personal bajas', HOME, '+ Baja de Personal'], ['#poolDuda', DUDA, 'TMA en duda', EXT, '+ Persona de TMA en duda']].forEach(([sel, tid, title, co, btn]) => {
     const m = membersOf(tid);
-    $(sel).innerHTML = '<div class="pool-head"><h2>' + title + '</h2><span class="count">' + m.length + '</span>' +
+    $(sel).innerHTML = '<div class="pool-head"><h2>' + title + '</h2><span class="count">' + m.length + '</span>' + poolNote(tid) +
       '<span class="hint">' + (tid === RETIRO ? 'se resta de la dotación de MCH · arrastrá gente acá' : 'no suma al total de MCH · arrastrá gente acá') + '</span>' +
       '<button class="btn pool-add" data-act="add-person" data-team="' + tid + '"' + (co ? ' data-co="' + co + '"' : '') + '>' + btn + '</button></div>' +
       (tid === RETIRO ? (m.length ? [['Confirmados', m.filter(p => p.retOk)], ['En análisis', m.filter(p => !p.retOk)]].map(([l, g]) =>
@@ -1735,7 +1738,7 @@ function renderPool(){
        tid === DUDA ? groupedList('duda', m, DUDA, '') : '<div class="pool-list">' + (m.length ? m.map(p => chip(p, true)).join('') : '<span class="hint">Vacío</span>') + '</div>');
   });
   const mi = membersOf(MIRA);
-  $('#poolMira').innerHTML = '<div class="pool-head"><h2 class="mira-title"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1.5v5M12 17.5v5M1.5 12h5M17.5 12h5"/></svg>En la mira</h2><span class="count">' + mi.length + '</span>' +
+  $('#poolMira').innerHTML = '<div class="pool-head"><h2 class="mira-title"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1.5v5M12 17.5v5M1.5 12h5M17.5 12h5"/></svg>En la mira</h2><span class="count">' + mi.length + '</span>' + poolNote(MIRA) +
     '<span class="hint">gente que estamos mirando sumar · no cuenta en la estructura</span>' +
     '<button class="btn pool-add" data-act="add-person" data-team="' + MIRA + '">+ Persona en la mira</button></div>' +
     '<div class="pool-list">' + (mi.length ? mi.map(p => chip(p, true)).join('') : (miraMarked().length ? '' : '<span class="hint">Vacío · arrastrá gente acá, agregala con el botón o marcá "En la mira" en su ficha</span>')) + '</div>' +
@@ -1743,7 +1746,7 @@ function renderPool(){
       miraMarked().map(p => '<span class="chip mira-dup' + coClass(p) + '"><button class="mira-dup-name" data-act="edit-person" data-pid="' + p.id + '" title="' + esc(tip(p)) + '">' + esc(p.name) + ' <small>· ' + esc(teamName(p.team)) + '</small></button>' +
         '<button class="mira-dup-x" data-act="mira-unmark" data-pid="' + p.id + '" aria-label="Sacar a ' + esc(p.name) + ' de En la mira" title="Sacar de En la mira">✕</button></span>').join('') + '</div></div>' : '');
   const pk = membersOf(PARK);
-  $('#poolPark').innerHTML = '<div class="pool-head"><h2>Parking lot</h2><span class="count">' + pk.length + '</span>' +
+  $('#poolPark').innerHTML = '<div class="pool-head"><h2>Parking lot</h2><span class="count">' + pk.length + '</span>' + poolNote(PARK) +
     '<span class="hint">no cuenta en la estructura · arrastrá gente acá para apartarla</span></div>' +
     '<div class="pool-list">' + (pk.length ? pk.map(p => chip(p, true)).join('') : '<span class="hint">Vacío</span>') + '</div>';
 }
