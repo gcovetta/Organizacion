@@ -1400,7 +1400,8 @@ function areaStats(){
   const pct = den ? (nRet * 100 / den) : 0;
   const retiro = '<div class="stat area retiro" title="' + esc('Personas movidas a Retiro (ya no suman a MCH). El % es sobre Cloud Privada de Personal (Soporte & Operación + Diseño & Ingeniería + Sin asignar · Personal) más los que se van a retiro.') + '"><span>Retiro</span><span>' + nRet + '</span>' +
     '<small class="area-split"><b>' + pct.toFixed(1).replace('.', ',') + '% de Cloud Privada Personal</b></small><small class="area-extra">' + nRet + ' / (' + cpHome + ' + ' + nRet + ')</small></div>';
-  return mch + mchNoTma + retiro + boxes.join('');
+  const bajas = '<div class="stat area baja" title="Personas en el recuadro Personal bajas (no suman a MCH)."><span>Bajas</span><span>' + membersOf(BAJA).length + '</span><small class="area-extra">en Personal bajas</small></div>';
+  return mch + mchNoTma + retiro + bajas + boxes.join('');
 }
 function roleStats(){
   const ppl = ourPeople(), cnt = {};
